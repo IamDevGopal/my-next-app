@@ -4,6 +4,7 @@ import type {
   ForgotPasswordFormValues,
   LoginData,
   LoginFormValues,
+  MeData,
   ResetPasswordFormValues,
 } from "../types/auth.type";
 
@@ -25,5 +26,12 @@ export function resetPassword(payload: ResetPasswordFormValues) {
   return apiRequest<Record<string, never>>("/auth/reset-password", {
     method: "POST",
     body: payload,
+  });
+}
+
+export function me(accessToken: string) {
+  return apiRequest<MeData>("/auth/me", {
+    method: "GET",
+    accessToken,
   });
 }

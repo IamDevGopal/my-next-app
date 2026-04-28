@@ -22,6 +22,10 @@ export interface LoginData {
   };
 }
 
+export interface MeData {
+  user: LoginData["user"];
+}
+
 export interface ForgotPasswordData {
   resetToken?: string;
 }

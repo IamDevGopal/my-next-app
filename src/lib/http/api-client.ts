@@ -4,6 +4,7 @@ import type { ApiResponse, ApiSuccessResponse } from "./api-response.type";
 
 interface ApiRequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
+  accessToken?: string;
 }
 
 export async function apiRequest<TData>(
@@ -14,6 +15,9 @@ export async function apiRequest<TData>(
     ...options,
     headers: {
       "content-type": "application/json",
+      ...(options.accessToken
+        ? { authorization: `Bearer ${options.accessToken}` }
+        : {}),
       ...options.headers,
     },
     body: options.body ? JSON.stringify(options.body) : undefined,

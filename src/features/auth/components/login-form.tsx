@@ -2,16 +2,19 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { login } from "../api/auth.api";
 import { loginSchema } from "../schemas/auth.schema";
 import type { LoginFormValues } from "../types/auth.type";
+import { storeAuthTokens } from "../utils/auth-storage";
 import { FormField } from "./form-field";
 import { SubmitButton } from "./submit-button";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 export function LoginForm() {
+  const router = useRouter();
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const {
     register,
@@ -29,9 +32,12 @@ export function LoginForm() {
     setFormMessage(null);
     try {
       const response = await login(values);
-      localStorage.setItem("taskflow.accessToken", response.data.accessToken);
-      localStorage.setItem("taskflow.refreshToken", response.data.refreshToken);
+      storeAuthTokens({
+        accessToken: response.data.accessToken,
+        refreshToken: response.data.refreshToken,
+      });
       setFormMessage(response.message || `Welcome back, ${response.data.user.name}.`);
+      router.replace("/dashboard");
     } catch (error) {
       setFormMessage(getErrorMessage(error));
     }
