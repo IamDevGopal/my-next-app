@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security Report
+    url: https://github.com/IamDevGopal/my-next-app/security
+    about: Use private reporting for security-sensitive frontend issues.
