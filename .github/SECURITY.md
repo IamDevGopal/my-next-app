@@ -4,7 +4,7 @@
 
 Please do not open public issues for suspected vulnerabilities.
 
-Instead, contact the maintainers privately and include:
+Instead, contact the maintainers privately at `gopal95kumhar@gmail.com` and include:
 
 1. a clear description of the issue
 2. affected files, endpoints, or flows if known
@@ -24,3 +24,9 @@ Instead, contact the maintainers privately and include:
 - Keep security-sensitive defaults explicit
 - Review auth, permission, validation, and deployment changes carefully
 - Call out any security-relevant behavior in the pull request
+
+## Security Contact
+
+- Owner: Gopal Kumhar
+- GitHub: `IamDevGopal`
+- Email: `gopal95kumhar@gmail.com`

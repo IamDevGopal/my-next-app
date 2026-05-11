@@ -24,7 +24,7 @@ This applies across issues, pull requests, code review, documentation, direct me
 
 ## Reporting
 
-If you experience or witness behavior that should be reviewed, report it privately to the maintainers through the contact path documented in the repository security or governance docs.
+If you experience or witness behavior that should be reviewed, report it privately to `gopal95kumhar@gmail.com`.
 
 Please include:
 
@@ -47,3 +47,9 @@ Maintainers may take action they believe is necessary to protect the project and
 ## Scope
 
 This code of conduct applies in all TaskFlow repositories and their related collaboration spaces.
+
+## Maintainer Contact
+
+- Owner: Gopal Kumhar
+- GitHub: `IamDevGopal`
+- Email: `gopal95kumhar@gmail.com`

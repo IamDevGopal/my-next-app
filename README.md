@@ -33,3 +33,9 @@ This repository owns the frontend application, browser-facing user flows, UI com
 - Contribution guide: `.github/CONTRIBUTING.md`
 - Governance policies: `.github/governance/`
 - Parent orchestration repo: `../`
+
+## Maintainer
+
+- Owner: Gopal Kumhar
+- GitHub: `IamDevGopal`
+- Contact: `gopal95kumhar@gmail.com`

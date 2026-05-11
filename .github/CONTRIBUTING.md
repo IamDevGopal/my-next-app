@@ -49,3 +49,9 @@ A strong frontend PR should explain:
 - whether auth-related behavior changed
 - whether runtime or build assumptions changed
 - what was validated locally
+
+## Maintainer
+
+- Owner: Gopal Kumhar
+- GitHub: `IamDevGopal`
+- Contact: `gopal95kumhar@gmail.com`
