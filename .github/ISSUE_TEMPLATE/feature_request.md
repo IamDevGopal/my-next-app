@@ -1,23 +1,27 @@
 ---
 name: Feature request
-about: Suggest a frontend capability or UX improvement
+about: Suggest a frontend improvement for TaskFlow Web
 title: "[Feature] "
 labels: enhancement
-assignees: ''
 ---
 
 ## Problem
 
+What user-facing problem are you trying to solve?
+
 ## Proposed Change
 
-## Frontend Area
+Describe the improvement you want.
 
-- Auth
-- Dashboard
-- Navigation
-- Design system
-- Build/runtime
+## Area
 
-## Notes
+- [ ] UI or layout
+- [ ] Forms or validation
+- [ ] Auth flow
+- [ ] Performance
+- [ ] Accessibility
+- [ ] Tooling or maintenance
 
-Does this affect API integration, environment usage, or release behavior?
+## Alternatives Considered
+
+## Additional Context

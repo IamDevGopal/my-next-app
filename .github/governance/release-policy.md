@@ -1,16 +1,11 @@
-# Frontend Release Policy
+# Release Policy
 
-## Artifact
+## Release Trigger
 
-This repository publishes the frontend image used by deployment workflows.
+Frontend release publishing is handled by the repository release workflow and is intended to produce the image consumed by the parent TaskFlow deployment process.
 
-## Release Assumptions
+## Maintainer Expectations
 
-- CI has passed
-- client env usage remains safe
-- auth routes still build and behave correctly
-
-## Tag Intent
-
-- `latest` represents stable frontend output from `master`
-- commit-based tags provide traceability
+- release builds should come from validated code
+- published images should preserve expected production startup behavior
+- build-time environment assumptions should be clear before release

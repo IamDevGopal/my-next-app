@@ -2,16 +2,19 @@
 
 ## Design Rules
 
-- prioritize strong hierarchy and clarity
+- prioritize clear hierarchy and readability
 - preserve working auth behavior
-- respect mobile and desktop layouts
+- respect both mobile and desktop layouts
+- keep error, loading, and empty states intentional
 
 ## Runtime Rules
 
-- browser-facing env usage must remain intentional
+- browser-facing environment usage must remain intentional
 - Docker image changes must preserve production startup behavior
+- build-time assumptions should be documented when they change
 
-## Auth Rules
+## UX Rules
 
-- login, forgot-password, and reset-password screens must remain reliable and understandable
-- auth-related visual polish must not break actual form flow
+- auth flows should remain reliable and understandable
+- visual polish must not break real form behavior
+- new patterns should feel consistent with the rest of the product

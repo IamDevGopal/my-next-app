@@ -1,18 +1,15 @@
-# Frontend Branch And Release Policy
+# Branch and Release Policy
 
-## Stable Branch
+## Default Branch
 
-- `master`
+- `master` is the primary release branch unless maintainers intentionally change the policy.
 
-## Release Rule
+## Working Rule
 
-`master` is the branch eligible for frontend image release.
+- keep pull requests focused
+- avoid mixing unrelated cleanup with release-sensitive work
+- prefer small, reviewable changes over broad rewrites
 
-## Merge Rule
+## Release Safety
 
-Do not merge frontend changes that break:
-
-- lint
-- build
-- auth-route stability
-- Docker image runtime expectations
+Changes that affect runtime behavior, release artifacts, or deployment expectations should be called out explicitly in the pull request.

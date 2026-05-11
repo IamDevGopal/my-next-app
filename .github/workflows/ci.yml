@@ -2,13 +2,9 @@ name: Frontend CI
 
 on:
   pull_request:
-    branches:
-      - master
-      - main
+    branches: [master, main]
   push:
-    branches:
-      - master
-      - main
+    branches: [master, main]
   workflow_dispatch:
 
 permissions:
@@ -39,6 +35,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Build
         run: npm run build
         env:
@@ -47,8 +46,7 @@ jobs:
   docker-verification:
     name: Frontend Docker Verification
     runs-on: ubuntu-latest
-    needs:
-      - frontend-checks
+    needs: [frontend-checks]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

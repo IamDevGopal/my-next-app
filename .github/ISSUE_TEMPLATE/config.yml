@@ -1,5 +1,5 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: Security Report
-    url: https://github.com/IamDevGopal/my-next-app/security
-    about: Use private reporting for security-sensitive frontend issues.
+  - name: Contribution Guide
+    url: https://github.com/IamDevGopal/TaskFlow
+    about: Review the repository contribution workflow before opening an issue.

@@ -1,0 +1,15 @@
+"type: docs":
+  - changed-files:
+      - any-glob-to-any-file: ["README.md", ".github/**/*.md", ".github/**/*.yml"]
+
+"type: frontend":
+  - changed-files:
+      - any-glob-to-any-file: ["src/**/*", "public/**/*"]
+
+"type: automation":
+  - changed-files:
+      - any-glob-to-any-file: [".github/workflows/**/*", "Dockerfile"]
+
+"type: dependencies":
+  - changed-files:
+      - any-glob-to-any-file: ["package.json", "package-lock.json"]

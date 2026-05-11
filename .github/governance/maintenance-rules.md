@@ -1,22 +1,12 @@
-# Frontend Maintenance Rules
+# Maintenance Rules
 
-## Purpose
+## General Expectations
 
-These rules keep the frontend buildable, understandable, and production-safe.
+- keep docs aligned with real workflows
+- keep CI meaningful and current
+- remove stale guidance when the codebase evolves
+- prefer explicit automation over tribal knowledge
 
-## Quality Gate
+## Documentation Rule
 
-The frontend is not considered healthy unless:
-
-- lint passes
-- build passes
-- auth screens remain usable
-- public env assumptions remain correct
-
-## UX Integrity Rule
-
-Visual changes must improve clarity without casually breaking flow, spacing, or responsive behavior.
-
-## Drift Rule
-
-Do not rely on uncommitted local tweaks as the reason a frontend screen looks or behaves correctly.
+If local setup, release steps, runtime assumptions, or repository ownership change, update the relevant docs in the same pull request.

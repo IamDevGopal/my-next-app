@@ -4,30 +4,28 @@ Describe the frontend change clearly.
 
 ## Change Type
 
-- [ ] UI or layout change
-- [ ] Auth flow change
-- [ ] Routing behavior change
-- [ ] Build/runtime change
-- [ ] CI or release change
-- [ ] Documentation only
+- [ ] Feature
+- [ ] Fix
+- [ ] Refactor
+- [ ] Docs
+- [ ] CI or automation
+- [ ] UI polish
+- [ ] Runtime or Docker change
 
-## Required Validation
+## Frontend Impact
 
-- [ ] `npm run lint`
-- [ ] `npm run build`
+- affected pages or flows:
+- auth flow affected:
+- responsive behavior reviewed:
 
-## UX Notes
+## Validation
 
-- [ ] No visual behavior change beyond intended scope
-- [ ] Mobile behavior considered
-- [ ] Auth page behavior preserved if touched
+```text
+npm run lint
+npm run typecheck
+npm run build
+```
 
-## Security Notes
+## Notes for Reviewers
 
-- [ ] No browser-facing secret exposure
-- [ ] Auth-related change reviewed carefully
-
-## Deployment Notes
-
-- [ ] No deploy-side follow-up
-- [ ] Frontend image/runtime behavior changed
+Call out any important UX, auth, build, or deployment-sensitive behavior.

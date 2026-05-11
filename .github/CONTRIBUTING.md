@@ -1,47 +1,51 @@
-# Contributing To TaskFlow Frontend
+# Contributing to TaskFlow Web
 
-## Repository Purpose
+Thanks for contributing. This repository owns the frontend experience for TaskFlow and should remain understandable, reliable, and easy to evolve.
 
-This repository is the source of truth for the TaskFlow frontend, including:
+## What This Repository Owns
 
-- app routes and screens
-- auth user experience
-- frontend runtime behavior
-- frontend Docker image
-
-## Branch Policy
-
-- `master` is the stable frontend branch.
-- Frontend image releases are published from `master`.
+- browser-facing UI and page flows
+- auth-related frontend behavior
+- client-side validation and form UX
+- frontend build and runtime behavior
+- frontend release image behavior
 
 ## Local Setup
 
-Typical frontend setup:
+```bash
+npm install
+```
+
+Start development:
 
 ```bash
-npm ci
+npm run dev
+```
+
+## Recommended Validation
+
+Before opening a pull request, run:
+
+```bash
 npm run lint
+npm run typecheck
 npm run build
 ```
 
-## Required Checks
+## Frontend Expectations
 
-Before pushing:
+- preserve working auth behavior
+- keep UX clear on both desktop and mobile
+- avoid mixing large visual rewrites with unrelated bug fixes
+- prefer understandable component structure over clever abstractions
+- keep browser-facing environment usage intentional
 
-```bash
-npm run lint
-npm run build
-```
+## Pull Request Expectations
 
-## Frontend Development Rules
+A strong frontend PR should explain:
 
-- preserve behavior unless the change intentionally modifies behavior
-- avoid generic UI where stronger hierarchy and clarity are possible
-- keep auth routes understandable and reliable
-- do not expose backend-only secrets in browser-facing code
-
-## Pull Request Rules
-
-- explain the user-facing change clearly
-- mention route, auth, env, or runtime impact
-- include screenshots when visual changes are meaningful
+- what user experience changed
+- what screens or flows are affected
+- whether auth-related behavior changed
+- whether runtime or build assumptions changed
+- what was validated locally

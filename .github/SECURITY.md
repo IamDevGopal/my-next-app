@@ -1,36 +1,26 @@
-# TaskFlow Frontend Security Policy
+# Security Policy
 
-## Scope
+## Reporting Security Issues
 
-The frontend has a different security profile from the backend, but still includes sensitive concerns:
+Please do not open public issues for suspected vulnerabilities.
 
-- auth flows
-- client token handling
-- reset-password paths
-- browser-visible environment configuration
+Instead, contact the maintainers privately and include:
 
-## Supported Branch
+1. a clear description of the issue
+2. affected files, endpoints, or flows if known
+3. steps to reproduce
+4. potential impact
+5. any proof-of-concept details that help confirm the report
 
-- `master`
+## Response Expectations
 
-## Reporting A Vulnerability
+- Security reports should be acknowledged quickly
+- Reproduction and impact should be validated before public discussion
+- Fixes should be coordinated before full disclosure
 
-Do not open public issues for:
+## Contributor Expectations
 
-- exposed client auth weakness
-- token storage weakness
-- reset-password flow abuse
-- accidental client-side secret exposure
-
-Report privately with:
-
-1. summary
-2. affected route or file
-3. reproduction steps
-4. impact
-
-## Security Rules
-
-- only `NEXT_PUBLIC_*` values may be intentionally browser-visible
-- never place backend-only secrets in client code
-- treat auth page changes as security-sensitive
+- Never commit credentials, tokens, or production secrets
+- Keep security-sensitive defaults explicit
+- Review auth, permission, validation, and deployment changes carefully
+- Call out any security-relevant behavior in the pull request

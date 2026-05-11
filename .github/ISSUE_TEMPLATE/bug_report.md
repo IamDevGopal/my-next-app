@@ -1,33 +1,38 @@
 ---
 name: Bug report
-about: Report a frontend page, auth, or runtime issue
+about: Report a frontend bug in TaskFlow Web
 title: "[Bug] "
 labels: bug
-assignees: ''
 ---
 
 ## Summary
 
-Describe the frontend issue clearly.
+Describe the issue clearly.
 
 ## Area
 
-- Auth page
-- Dashboard
-- Routing
-- Build/runtime
-- Styling
+- [ ] UI or layout
+- [ ] Form behavior
+- [ ] Auth flow
+- [ ] Client-side validation
+- [ ] Runtime or build behavior
 
-## Steps To Reproduce
+## Steps to Reproduce
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ## Expected Behavior
 
 ## Actual Behavior
 
-## Notes
+## Browser and Environment
 
-Include browser, route, or console context if useful.
+- browser:
+- device:
+- environment:
+
+## Additional Context
+
+Screenshots, recordings, logs, or any extra context that helps reproduction.
