@@ -45,7 +45,7 @@ export function LoginForm() {
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
       <FormField
         error={errors.email?.message}
         id="email"
