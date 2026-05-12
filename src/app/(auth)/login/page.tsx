@@ -29,8 +29,8 @@ export default function LoginPage() {
                   Sign in to your control center without leaving the screen.
                 </h1>
                 <p className="max-w-lg text-sm leading-7 text-slate-300 xl:text-[0.95rem]">
-                  A compact workspace entry built for quick access to dashboards,
-                  teams, and delivery flow.
+                  A compact workspace entry built for quick access to
+                  dashboards, teams, and delivery flow.
                 </p>
               </div>
             </div>
@@ -42,7 +42,9 @@ export default function LoginPage() {
                   className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/8 px-4 py-3 backdrop-blur-sm"
                 >
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-300" />
-                  <span className="text-sm leading-6 text-slate-200">{item}</span>
+                  <span className="text-sm leading-6 text-slate-200">
+                    {item}
+                  </span>
                 </div>
               ))}
             </div>
