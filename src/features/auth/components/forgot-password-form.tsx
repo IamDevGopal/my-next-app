@@ -1,13 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { forgotPassword } from "../api/auth.api";
 import { forgotPasswordSchema } from "../schemas/auth.schema";
 import type { ForgotPasswordFormValues } from "../types/auth.type";
+import { AuthFormLink } from "./auth-form-link";
 import { FormField } from "./form-field";
+import { FormMessage } from "./form-message";
 import { SubmitButton } from "./submit-button";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
@@ -45,22 +46,13 @@ export function ForgotPasswordForm() {
         {...register("email")}
       />
       {message ? (
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          {message}
-        </p>
+        <FormMessage>{message}</FormMessage>
       ) : null}
       {devToken ? (
-        <p className="break-all rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-700">
-          Dev reset token: {devToken}
-        </p>
+        <FormMessage tone="code">Dev reset token: {devToken}</FormMessage>
       ) : null}
       <SubmitButton isSubmitting={isSubmitting}>Send reset link</SubmitButton>
-      <Link
-        className="block text-center text-sm font-medium text-emerald-700 hover:text-emerald-900"
-        href="/login"
-      >
-        Back to login
-      </Link>
+      <AuthFormLink href="/login">Back to login</AuthFormLink>
     </form>
   );
 }

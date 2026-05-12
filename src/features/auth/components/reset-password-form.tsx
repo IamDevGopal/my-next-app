@@ -1,14 +1,15 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { resetPassword } from "../api/auth.api";
 import { resetPasswordSchema } from "../schemas/auth.schema";
 import type { ResetPasswordFormValues } from "../types/auth.type";
+import { AuthFormLink } from "./auth-form-link";
 import { FormField } from "./form-field";
+import { FormMessage } from "./form-message";
 import { SubmitButton } from "./submit-button";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
@@ -54,17 +55,10 @@ export function ResetPasswordForm() {
         {...register("newPassword")}
       />
       {message ? (
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          {message}
-        </p>
+        <FormMessage>{message}</FormMessage>
       ) : null}
       <SubmitButton isSubmitting={isSubmitting}>Reset password</SubmitButton>
-      <Link
-        className="block text-center text-sm font-medium text-emerald-700 hover:text-emerald-900"
-        href="/login"
-      >
-        Back to login
-      </Link>
+      <AuthFormLink href="/login">Back to login</AuthFormLink>
     </form>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -9,7 +8,9 @@ import { login } from "../api/auth.api";
 import { loginSchema } from "../schemas/auth.schema";
 import type { LoginFormValues } from "../types/auth.type";
 import { storeAuthTokens } from "../utils/auth-storage";
+import { AuthFormLink } from "./auth-form-link";
 import { FormField } from "./form-field";
+import { FormMessage } from "./form-message";
 import { SubmitButton } from "./submit-button";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
@@ -62,17 +63,10 @@ export function LoginForm() {
         {...register("password")}
       />
       {formMessage ? (
-        <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800">
-          {formMessage}
-        </p>
+        <FormMessage tone="neutral">{formMessage}</FormMessage>
       ) : null}
       <SubmitButton isSubmitting={isSubmitting}>Sign in</SubmitButton>
-      <Link
-        className="block text-center text-sm font-semibold text-emerald-700 transition hover:text-emerald-900"
-        href="/forgot-password"
-      >
-        Forgot password?
-      </Link>
+      <AuthFormLink href="/forgot-password">Forgot password?</AuthFormLink>
     </form>
   );
 }
