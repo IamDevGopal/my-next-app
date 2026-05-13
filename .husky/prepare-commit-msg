@@ -1,0 +1,109 @@
+#!/usr/bin/env sh
+
+COMMIT_MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "squash" ] || [ "$COMMIT_SOURCE" = "commit" ]; then
+  exit 0
+fi
+
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+if echo "$COMMIT_MSG" | grep -qE '^\S+\s+(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?(!)?: '; then
+  exit 0
+fi
+
+if echo "$COMMIT_MSG" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?(!)?: '; then
+  MESSAGE_TYPE=$(echo "$COMMIT_MSG" | sed -E 's/^([a-z]+).*/\1/')
+
+  case "$MESSAGE_TYPE" in
+    feat) EMOJI='✨' ;;
+    fix) EMOJI='🐛' ;;
+    docs) EMOJI='📚' ;;
+    style) EMOJI='💄' ;;
+    refactor) EMOJI='♻️' ;;
+    perf) EMOJI='⚡' ;;
+    test) EMOJI='✅' ;;
+    chore) EMOJI='🧹' ;;
+    ci) EMOJI='🚀' ;;
+    build) EMOJI='🔧' ;;
+    revert) EMOJI='⏪' ;;
+    *) exit 0 ;;
+  esac
+
+  printf '%s %s\n' "$EMOJI" "$COMMIT_MSG" > "$COMMIT_MSG_FILE"
+  exit 0
+fi
+
+BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+if [ -z "$BRANCH_NAME" ]; then
+  exit 0
+fi
+
+case "$BRANCH_NAME" in
+  main|master|develop|development|release/*)
+    exit 0
+    ;;
+esac
+
+BRANCH_PREFIX=$(echo "$BRANCH_NAME" | sed -E 's/^([a-zA-Z]+)[\/\-].*/\1/' | tr '[:upper:]' '[:lower:]')
+BRANCH_SCOPE=$(echo "$BRANCH_NAME" | sed -E 's/^[a-zA-Z]+[\/-]//' | sed -E 's/[\/_]+/-/g' | sed -E 's/-.*//' | tr '[:upper:]' '[:lower:]')
+
+case "$BRANCH_PREFIX" in
+  feat|feature)
+    EMOJI='✨'
+    TYPE='feat'
+    ;;
+  fix|bug|bugfix|hotfix)
+    EMOJI='🐛'
+    TYPE='fix'
+    ;;
+  docs|doc|documentation)
+    EMOJI='📚'
+    TYPE='docs'
+    ;;
+  style)
+    EMOJI='💄'
+    TYPE='style'
+    ;;
+  refactor)
+    EMOJI='♻️'
+    TYPE='refactor'
+    ;;
+  perf|performance)
+    EMOJI='⚡'
+    TYPE='perf'
+    ;;
+  test|tests)
+    EMOJI='✅'
+    TYPE='test'
+    ;;
+  chore|maintenance)
+    EMOJI='🧹'
+    TYPE='chore'
+    ;;
+  ci)
+    EMOJI='🚀'
+    TYPE='ci'
+    ;;
+  build)
+    EMOJI='🔧'
+    TYPE='build'
+    ;;
+  revert)
+    EMOJI='⏪'
+    TYPE='revert'
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+
+if [ -n "$BRANCH_SCOPE" ] && [ "$BRANCH_SCOPE" != "$BRANCH_PREFIX" ]; then
+  PREFIX="$EMOJI $TYPE($BRANCH_SCOPE): "
+else
+  PREFIX="$EMOJI $TYPE: "
+fi
+
+printf '%s%s\n' "$PREFIX" "$COMMIT_MSG" > "$COMMIT_MSG_FILE"

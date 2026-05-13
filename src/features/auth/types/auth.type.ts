@@ -18,7 +18,7 @@ export interface LoginData {
     id: string;
     email: string;
     name: string;
-    role: "ADMIN" | "MEMBER";
+    role: "USER";
   };
 }
 
