@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ProfileForm } from "@/features/users/components/profile-form";
+import { TeamsWorkspace } from "@/features/teams/components/teams-workspace";
 import { UserAvatar } from "@/features/users/components/user-avatar";
 import { UserSearchPanel } from "@/features/users/components/user-search-panel";
 import { getCurrentUser } from "@/features/users/api/users.api";
@@ -101,7 +102,11 @@ export default function DashboardPage() {
         <header className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <UserAvatar avatarUrl={user.avatarUrl} name={user.name} size="lg" />
+              <UserAvatar
+                avatarUrl={user.avatarUrl}
+                name={user.name}
+                size="lg"
+              />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-emerald-700">
                   TaskFlow
@@ -124,6 +129,8 @@ export default function DashboardPage() {
             </button>
           </div>
         </header>
+
+        <TeamsWorkspace accessToken={accessToken} />
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
