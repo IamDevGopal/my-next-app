@@ -76,6 +76,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
   const [receivedInvites, setReceivedInvites] = useState<TeamInviteData[]>([]);
   const [invites, setInvites] = useState<TeamInviteData[]>([]);
   const [joinRequests, setJoinRequests] = useState<TeamJoinRequestData[]>([]);
+  const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const canEditTeamSettings = selectedTeam?.currentUserRole === "OWNER";
@@ -150,6 +151,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
   async function handleTeamCreated(team: TeamDetailData) {
     await loadTeams();
     setSelectedTeamId(team.id);
+    setIsCreateTeamOpen(false);
   }
 
   async function handleTeamUpdated(team: TeamDetailData) {
@@ -190,12 +192,12 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
             </h2>
           </div>
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
-            onClick={refreshSelectedTeam}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800"
+            onClick={() => setIsCreateTeamOpen(true)}
             type="button"
           >
-            <RefreshCcw className="size-4" />
-            Refresh
+            <Plus className="size-4" />
+            New team
           </button>
         </div>
       </div>
@@ -211,13 +213,18 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
 
       <div className="grid min-h-[34rem] gap-0 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <aside className="border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
-          <CreateTeamPanel
-            accessToken={accessToken}
-            onCreated={handleTeamCreated}
-          />
+          <button
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+            onClick={refreshSelectedTeam}
+            type="button"
+          >
+            <RefreshCcw className="size-4" />
+            Refresh teams
+          </button>
           <TeamList
             isLoading={status === "loading"}
             onSelect={setSelectedTeamId}
+            onCreate={() => setIsCreateTeamOpen(true)}
             selectedTeamId={selectedTeamId}
             teams={teams}
           />
@@ -279,19 +286,30 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
             </div>
           ) : (
             <EmptyState
+              actionLabel="Create team"
               icon={<Plus className="size-5" />}
+              onAction={() => setIsCreateTeamOpen(true)}
               title="Create your first team"
               text="Teams bring tasks, members, chat, and future calls into one workspace."
             />
           )}
         </div>
       </div>
+
+      <CreateTeamDialog
+        accessToken={accessToken}
+        isOpen={isCreateTeamOpen}
+        onClose={() => setIsCreateTeamOpen(false)}
+        onCreated={handleTeamCreated}
+      />
     </section>
   );
 }
 
-interface CreateTeamPanelProps {
+interface CreateTeamDialogProps {
   accessToken: string;
+  isOpen: boolean;
+  onClose: () => void;
   onCreated: (team: TeamDetailData) => void | Promise<void>;
 }
 
@@ -401,8 +419,15 @@ function ReceivedInvitesPanel({
   );
 }
 
-function CreateTeamPanel({ accessToken, onCreated }: CreateTeamPanelProps) {
+function CreateTeamDialog({
+  accessToken,
+  isOpen,
+  onClose,
+  onCreated,
+}: CreateTeamDialogProps) {
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [visibility, setVisibility] = useState<TeamVisibility>("PRIVATE");
   const [joinPolicy, setJoinPolicy] =
     useState<TeamJoinPolicy>("INVITE_OR_REQUEST");
@@ -423,10 +448,14 @@ function CreateTeamPanel({ accessToken, onCreated }: CreateTeamPanelProps) {
     try {
       const response = await createTeam(accessToken, {
         name,
+        description: description.trim() || null,
+        avatarUrl: avatarUrl.trim() || null,
         visibility,
         joinPolicy,
       });
       setName("");
+      setDescription("");
+      setAvatarUrl("");
       await onCreated(response.data.team);
     } catch (error) {
       setMessage(getErrorMessage(error));
@@ -435,56 +464,103 @@ function CreateTeamPanel({ accessToken, onCreated }: CreateTeamPanelProps) {
     }
   }
 
+  if (!isOpen) {
+    return null;
+  }
+
   return (
-    <form className="rounded-md bg-slate-50 p-3" onSubmit={handleSubmit}>
-      <label
-        className="text-sm font-semibold text-slate-900"
-        htmlFor="team-name"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+      <form
+        className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
+        onSubmit={handleSubmit}
       >
-        New team
-      </label>
-      <input
-        className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
-        id="team-name"
-        onChange={(event) => setName(event.target.value)}
-        placeholder="Design, Ops, Engineering"
-        value={name}
-      />
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <SelectField
-          label="Visibility"
-          onChange={(value) => setVisibility(value as TeamVisibility)}
-          options={teamVisibilityOptions}
-          value={visibility}
-        />
-        <SelectField
-          label="Join"
-          onChange={(value) => setJoinPolicy(value as TeamJoinPolicy)}
-          options={teamJoinPolicyOptions}
-          value={joinPolicy}
-        />
-      </div>
-      {message ? (
-        <p className="mt-2 text-xs font-medium text-rose-600">{message}</p>
-      ) : null}
-      <button
-        className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
-        disabled={isSubmitting}
-        type="submit"
-      >
-        {isSubmitting ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Plus className="size-4" />
-        )}
-        Create
-      </button>
-    </form>
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-950">
+              Create team
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Set the team identity and joining rules before inviting members.
+            </p>
+          </div>
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+            onClick={onClose}
+            type="button"
+            title="Close"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <TextField
+            label="Team name"
+            onChange={setName}
+            value={name}
+          />
+          <label className="block text-sm font-semibold text-slate-800">
+            Description
+            <textarea
+              className="mt-2 min-h-24 w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="What this team will coordinate"
+              value={description}
+            />
+          </label>
+          <TextField
+            label="Avatar URL"
+            onChange={setAvatarUrl}
+            value={avatarUrl}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <SelectField
+              label="Visibility"
+              onChange={(value) => setVisibility(value as TeamVisibility)}
+              options={teamVisibilityOptions}
+              value={visibility}
+            />
+            <SelectField
+              label="Join policy"
+              onChange={(value) => setJoinPolicy(value as TeamJoinPolicy)}
+              options={teamJoinPolicyOptions}
+              value={joinPolicy}
+            />
+          </div>
+          {message ? (
+            <p className="text-sm font-medium text-rose-600">{message}</p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end">
+          <button
+            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isSubmitting}
+            type="submit"
+          >
+            {isSubmitting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
+            Create team
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
 interface TeamListProps {
   isLoading: boolean;
+  onCreate: () => void;
   onSelect: (teamId: string) => void;
   selectedTeamId: string | null;
   teams: TeamSummaryData[];
@@ -492,6 +568,7 @@ interface TeamListProps {
 
 function TeamList({
   isLoading,
+  onCreate,
   onSelect,
   selectedTeamId,
   teams,
@@ -527,9 +604,17 @@ function TeamList({
         </button>
       ))}
       {!isLoading && teams.length === 0 ? (
-        <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-500">
-          No teams yet.
-        </p>
+        <div className="rounded-md border border-dashed border-slate-300 p-3">
+          <p className="text-sm text-slate-500">No teams yet.</p>
+          <button
+            className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+            onClick={onCreate}
+            type="button"
+          >
+            <Plus className="size-4" />
+            Create team
+          </button>
+        </div>
       ) : null}
     </div>
   );
@@ -1139,12 +1224,14 @@ function StatusPill({ value }: { value: string }) {
 }
 
 interface EmptyStateProps {
+  actionLabel?: string;
   icon: React.ReactNode;
+  onAction?: () => void;
   text: string;
   title: string;
 }
 
-function EmptyState({ icon, text, title }: EmptyStateProps) {
+function EmptyState({ actionLabel, icon, onAction, text, title }: EmptyStateProps) {
   return (
     <div className="flex min-h-96 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
       <div>
@@ -1153,6 +1240,16 @@ function EmptyState({ icon, text, title }: EmptyStateProps) {
         </div>
         <h3 className="mt-3 text-base font-semibold text-slate-950">{title}</h3>
         <p className="mt-1 max-w-sm text-sm text-slate-500">{text}</p>
+        {actionLabel && onAction ? (
+          <button
+            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800"
+            onClick={onAction}
+            type="button"
+          >
+            <Plus className="size-4" />
+            {actionLabel}
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -3,10 +3,14 @@
 import {
   CalendarDays,
   CheckCircle2,
+  LayoutDashboard,
   LogOut,
   Mail,
+  Search,
   ShieldCheck,
+  UserCircle2,
   UserRound,
+  UsersRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,10 +27,12 @@ import {
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 type DashboardStatus = "loading" | "ready" | "error";
+type DashboardView = "teams" | "profile" | "people";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [status, setStatus] = useState<DashboardStatus>("loading");
+  const [activeView, setActiveView] = useState<DashboardView>("teams");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<CurrentUserData | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -97,30 +103,62 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-5">
-        <header className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
+    <main className="min-h-screen bg-slate-100">
+      <div className="grid min-h-screen lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <aside className="border-b border-slate-200 bg-white px-4 py-5 lg:border-b-0 lg:border-r">
+          <div className="flex items-center gap-3 px-2">
+            <div className="flex size-10 items-center justify-center rounded-md bg-emerald-700 text-white">
+              <LayoutDashboard className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-emerald-700">
+                TaskFlow
+              </p>
+              <h1 className="text-base font-semibold text-slate-950">
+                Workspace
+              </h1>
+            </div>
+          </div>
+
+          <nav className="mt-6 grid gap-1">
+            <NavButton
+              active={activeView === "teams"}
+              icon={<UsersRound className="size-4" />}
+              label="Teams"
+              onClick={() => setActiveView("teams")}
+            />
+            <NavButton
+              active={activeView === "profile"}
+              icon={<UserCircle2 className="size-4" />}
+              label="Profile"
+              onClick={() => setActiveView("profile")}
+            />
+            <NavButton
+              active={activeView === "people"}
+              icon={<Search className="size-4" />}
+              label="People"
+              onClick={() => setActiveView("people")}
+            />
+          </nav>
+
+          <div className="mt-6 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center gap-3">
               <UserAvatar
                 avatarUrl={user.avatarUrl}
                 name={user.name}
-                size="lg"
+                size="sm"
               />
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-emerald-700">
-                  TaskFlow
-                </p>
-                <h1 className="truncate text-2xl font-semibold text-slate-950">
+                <p className="truncate text-sm font-semibold text-slate-950">
                   {user.name}
-                </h1>
-                <p className="mt-1 truncate text-sm text-slate-500">
+                </p>
+                <p className="truncate text-xs text-slate-500">
                   {user.profile?.headline ?? user.email}
                 </p>
               </div>
             </div>
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
               onClick={logout}
               type="button"
             >
@@ -128,66 +166,144 @@ export default function DashboardPage() {
               Logout
             </button>
           </div>
-        </header>
+        </aside>
 
-        <TeamsWorkspace accessToken={accessToken} />
-
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+        <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-950">
-                  Profile
+                <p className="text-sm font-semibold text-emerald-700">
+                  {activeView === "teams"
+                    ? "Collaboration"
+                    : activeView === "profile"
+                      ? "Account"
+                      : "Network"}
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                  {activeView === "teams"
+                    ? "Teams"
+                    : activeView === "profile"
+                      ? "Profile"
+                      : "People"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Identity and contact details
+                  {activeView === "teams"
+                    ? "Create teams, manage members, invites, and join requests."
+                    : activeView === "profile"
+                      ? "View and update your identity, contact, and public profile."
+                      : "Search users before inviting them into teams."}
                 </p>
               </div>
-              <div className="flex size-10 items-center justify-center rounded-md bg-emerald-50 text-emerald-700">
-                <UserRound className="size-5" />
+              <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <UserAvatar
+                  avatarUrl={user.avatarUrl}
+                  name={user.name}
+                  size="sm"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950">
+                    {user.name}
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {user.email}
+                  </p>
+                </div>
               </div>
-            </div>
-            <ProfileForm
-              accessToken={accessToken}
-              onUserUpdated={setUser}
-              user={user}
-            />
-          </section>
+            </header>
 
-          <aside className="space-y-5">
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-base font-semibold text-slate-950">
-                Account
-              </h2>
-              <div className="mt-4 space-y-3">
-                <InfoRow
-                  icon={<Mail className="size-4" />}
-                  label="Email"
-                  value={user.email}
-                />
-                <InfoRow
-                  icon={<ShieldCheck className="size-4" />}
-                  label="Status"
-                  value={user.status}
-                />
-                <InfoRow
-                  icon={<CheckCircle2 className="size-4" />}
-                  label="Verified"
-                  value={user.isEmailVerified ? "Yes" : "No"}
-                />
-                <InfoRow
-                  icon={<CalendarDays className="size-4" />}
-                  label="Joined"
-                  value={formatDate(user.createdAt)}
-                />
+            {activeView === "teams" ? (
+              <TeamsWorkspace accessToken={accessToken} />
+            ) : null}
+
+            {activeView === "profile" ? (
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+                <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">
+                        Edit profile
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        This information powers your public user card and team
+                        member identity.
+                      </p>
+                    </div>
+                    <div className="flex size-10 items-center justify-center rounded-md bg-emerald-50 text-emerald-700">
+                      <UserRound className="size-5" />
+                    </div>
+                  </div>
+                  <ProfileForm
+                    accessToken={accessToken}
+                    onUserUpdated={setUser}
+                    user={user}
+                  />
+                </section>
+
+                <aside className="space-y-5">
+                  <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <h3 className="text-base font-semibold text-slate-950">
+                      Account summary
+                    </h3>
+                    <div className="mt-4 space-y-3">
+                      <InfoRow
+                        icon={<Mail className="size-4" />}
+                        label="Email"
+                        value={user.email}
+                      />
+                      <InfoRow
+                        icon={<ShieldCheck className="size-4" />}
+                        label="Status"
+                        value={user.status}
+                      />
+                      <InfoRow
+                        icon={<CheckCircle2 className="size-4" />}
+                        label="Verified"
+                        value={user.isEmailVerified ? "Yes" : "No"}
+                      />
+                      <InfoRow
+                        icon={<CalendarDays className="size-4" />}
+                        label="Joined"
+                        value={formatDate(user.createdAt)}
+                      />
+                    </div>
+                  </section>
+                </aside>
               </div>
-            </section>
+            ) : null}
 
-            <UserSearchPanel accessToken={accessToken} />
-          </aside>
-        </div>
+            {activeView === "people" ? (
+              <div className="max-w-2xl">
+                <UserSearchPanel accessToken={accessToken} />
+              </div>
+            ) : null}
+          </div>
+        </section>
       </div>
     </main>
+  );
+}
+
+interface NavButtonProps {
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}
+
+function NavButton({ active, icon, label, onClick }: NavButtonProps) {
+  return (
+    <button
+      className={`flex h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold transition ${
+        active
+          ? "bg-emerald-50 text-emerald-800"
+          : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
