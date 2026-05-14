@@ -24,6 +24,24 @@ export function updateCurrentUser(
   });
 }
 
+export function updateCurrentUserAvatar(accessToken: string, file: File) {
+  const body = new FormData();
+  body.append("file", file);
+
+  return apiRequest<CurrentUserResponseData>("/users/me/avatar", {
+    method: "POST",
+    accessToken,
+    body,
+  });
+}
+
+export function removeCurrentUserAvatar(accessToken: string) {
+  return apiRequest<CurrentUserResponseData>("/users/me/avatar", {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
 export function searchUsers(params: {
   accessToken: string;
   query: string;

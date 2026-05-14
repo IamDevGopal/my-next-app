@@ -23,7 +23,6 @@ export const TeamJoinPolicySchema = z.enum([
 export const CreateTeamFormSchema = z.object({
   name: z.string().trim().min(1, "Team name is required").max(120),
   description: optionalNullableString(z.string().max(1200)),
-  avatarUrl: optionalNullableString(z.string().url().max(2048)),
   visibility: TeamVisibilitySchema.default("PRIVATE"),
   joinPolicy: TeamJoinPolicySchema.default("INVITE_OR_REQUEST"),
 });

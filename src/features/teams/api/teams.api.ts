@@ -107,6 +107,28 @@ export function deleteTeam(accessToken: string, teamId: string) {
   });
 }
 
+export function updateTeamAvatar(
+  accessToken: string,
+  teamId: string,
+  file: File,
+) {
+  const body = new FormData();
+  body.append("file", file);
+
+  return apiRequest<TeamResponseData>(`/teams/${teamId}/avatar`, {
+    method: "POST",
+    accessToken,
+    body,
+  });
+}
+
+export function removeTeamAvatar(accessToken: string, teamId: string) {
+  return apiRequest<TeamResponseData>(`/teams/${teamId}/avatar`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
 export function listTeamMembers(accessToken: string, teamId: string) {
   return apiRequest<TeamMembersResponseData>(`/teams/${teamId}/members`, {
     method: "GET",

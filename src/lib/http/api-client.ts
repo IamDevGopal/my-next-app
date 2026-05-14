@@ -3,7 +3,7 @@ import { ApiError } from "./api-error";
 import type { ApiResponse, ApiSuccessResponse } from "./api-response.type";
 
 interface ApiRequestOptions extends Omit<RequestInit, "body"> {
-  body?: unknown;
+  body?: FormData | unknown;
   accessToken?: string;
 }
 
@@ -11,16 +11,23 @@ export async function apiRequest<TData>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<ApiSuccessResponse<TData>> {
+  const isFormData = options.body instanceof FormData;
+  const body: BodyInit | undefined = isFormData
+    ? (options.body as FormData)
+    : options.body
+      ? JSON.stringify(options.body)
+      : undefined;
+
   const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}${path}`, {
     ...options,
     headers: {
-      "content-type": "application/json",
+      ...(isFormData ? {} : { "content-type": "application/json" }),
       ...(options.accessToken
         ? { authorization: `Bearer ${options.accessToken}` }
         : {}),
       ...options.headers,
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body,
   });
 
   const contentType = response.headers.get("content-type");

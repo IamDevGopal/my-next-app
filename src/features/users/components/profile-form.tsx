@@ -2,12 +2,18 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
+import type { InputHTMLAttributes } from "react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { FormMessage } from "@/features/auth/components/form-message";
+import { AvatarUploadControl } from "@/features/media/components/avatar-upload-control";
 import { getErrorMessage } from "@/lib/http/get-error-message";
-import { updateCurrentUser } from "../api/users.api";
+import {
+  removeCurrentUserAvatar,
+  updateCurrentUser,
+  updateCurrentUserAvatar,
+} from "../api/users.api";
 import {
   updateCurrentUserSchema,
   type UpdateCurrentUserFormValues,
@@ -26,7 +32,6 @@ function getProfileDefaultValues(user: CurrentUserData): ProfileFormInputValues 
   return {
     name: user.name,
     username: user.username ?? "",
-    avatarUrl: user.avatarUrl ?? "",
     bio: user.bio ?? "",
     timezone: user.timezone ?? "",
     headline: user.profile?.headline ?? "",
@@ -44,6 +49,8 @@ export function ProfileForm({
   onUserUpdated,
 }: ProfileFormProps) {
   const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [avatarMessage, setAvatarMessage] = useState<string | null>(null);
+  const [isAvatarSaving, setIsAvatarSaving] = useState(false);
   const {
     register,
     reset,
@@ -70,69 +77,104 @@ export function ProfileForm({
     }
   }
 
+  async function onAvatarUpload(file: File) {
+    setAvatarMessage(null);
+    setIsAvatarSaving(true);
+
+    try {
+      const response = await updateCurrentUserAvatar(accessToken, file);
+      onUserUpdated(response.data.user);
+      setAvatarMessage(response.message || "Avatar updated.");
+    } catch (error) {
+      setAvatarMessage(getErrorMessage(error));
+      throw error;
+    } finally {
+      setIsAvatarSaving(false);
+    }
+  }
+
+  async function onAvatarRemove() {
+    setAvatarMessage(null);
+    setIsAvatarSaving(true);
+
+    try {
+      const response = await removeCurrentUserAvatar(accessToken);
+      onUserUpdated(response.data.user);
+      setAvatarMessage(response.message || "Avatar removed.");
+    } catch (error) {
+      setAvatarMessage(getErrorMessage(error));
+    } finally {
+      setIsAvatarSaving(false);
+    }
+  }
+
   return (
-    <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-      <div className="grid gap-4 md:grid-cols-2">
-        <ProfileInput
-          error={errors.name?.message}
-          label="Name"
-          {...register("name")}
-        />
-        <ProfileInput
-          error={errors.username?.message}
-          label="Username"
-          placeholder="john_doe"
-          {...register("username")}
-        />
-        <ProfileInput
-          error={errors.headline?.message}
-          label="Headline"
-          placeholder="Product engineer"
-          {...register("headline")}
-        />
-        <ProfileInput
-          error={errors.company?.message}
-          label="Company"
-          placeholder="TaskFlow"
-          {...register("company")}
-        />
-        <ProfileInput
-          error={errors.location?.message}
-          label="Location"
-          placeholder="India"
-          {...register("location")}
-        />
-        <ProfileInput
-          error={errors.timezone?.message}
-          label="Timezone"
-          placeholder="Asia/Kolkata"
-          {...register("timezone")}
-        />
-        <ProfileInput
-          error={errors.websiteUrl?.message}
-          label="Website"
-          placeholder="https://example.com"
-          {...register("websiteUrl")}
-        />
-        <ProfileInput
-          error={errors.avatarUrl?.message}
-          label="Avatar URL"
-          placeholder="https://example.com/avatar.png"
-          {...register("avatarUrl")}
-        />
-        <ProfileInput
-          error={errors.phoneNumber?.message}
-          label="Phone"
-          placeholder="+919999999999"
-          {...register("phoneNumber")}
-        />
-        <ProfileInput
-          error={errors.locale?.message}
-          label="Locale"
-          placeholder="en-IN"
-          {...register("locale")}
-        />
-      </div>
+    <div className="space-y-5">
+      <AvatarUploadControl
+        avatarUrl={user.avatarUrl}
+        disabled={isAvatarSaving}
+        message={avatarMessage}
+        name={user.name}
+        onRemove={onAvatarRemove}
+        onUpload={onAvatarUpload}
+      />
+
+      <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+        <div className="grid gap-4 md:grid-cols-2">
+          <ProfileInput
+            error={errors.name?.message}
+            label="Name"
+            {...register("name")}
+          />
+          <ProfileInput
+            error={errors.username?.message}
+            label="Username"
+            placeholder="john_doe"
+            {...register("username")}
+          />
+          <ProfileInput
+            error={errors.headline?.message}
+            label="Headline"
+            placeholder="Product engineer"
+            {...register("headline")}
+          />
+          <ProfileInput
+            error={errors.company?.message}
+            label="Company"
+            placeholder="TaskFlow"
+            {...register("company")}
+          />
+          <ProfileInput
+            error={errors.location?.message}
+            label="Location"
+            placeholder="India"
+            {...register("location")}
+          />
+          <ProfileInput
+            error={errors.timezone?.message}
+            label="Timezone"
+            placeholder="Asia/Kolkata"
+            {...register("timezone")}
+          />
+          <ProfileInput
+            error={errors.websiteUrl?.message}
+            label="Website"
+            placeholder="https://example.com"
+            {...register("websiteUrl")}
+          />
+          <ProfileInput
+            error={errors.phoneNumber?.message}
+            label="Phone"
+            placeholder="+919999999999"
+            {...register("phoneNumber")}
+          />
+          <ProfileInput
+            error={errors.locale?.message}
+            label="Locale"
+            placeholder="en-IN"
+            {...register("locale")}
+          />
+        </div>
 
       <div className="space-y-1.5">
         <label className="text-sm font-semibold text-slate-800" htmlFor="bio">
@@ -163,12 +205,12 @@ export function ProfileForm({
           {isSubmitting ? "Saving" : "Save"}
         </button>
       </div>
-    </form>
+      </form>
+    </div>
   );
 }
 
-interface ProfileInputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+interface ProfileInputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   label: string;
 }

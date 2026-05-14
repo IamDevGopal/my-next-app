@@ -2,6 +2,7 @@
 
 import {
   Check,
+  ChevronDown,
   Crown,
   Edit3,
   Loader2,
@@ -14,7 +15,8 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AvatarUploadControl } from "@/features/media/components/avatar-upload-control";
 import { searchUsers } from "@/features/users/api/users.api";
 import { UserAvatar } from "@/features/users/components/user-avatar";
 import type { PublicUserData } from "@/features/users/types/user.type";
@@ -33,13 +35,16 @@ import {
   listTeamInvites,
   listTeamJoinRequests,
   listTeams,
+  removeTeamAvatar,
   removeTeamMember,
   rejectTeamInvite,
   rejectJoinRequest,
   updateTeam,
+  updateTeamAvatar,
   updateTeamMember,
 } from "../api/teams.api";
 import type {
+  PageInfoData,
   TeamDetailData,
   TeamDiscoveryData,
   TeamInviteData,
@@ -83,9 +88,17 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
   const [discoverableTeams, setDiscoverableTeams] = useState<
     TeamDiscoveryData[]
   >([]);
+  const [discoverPageInfo, setDiscoverPageInfo] = useState<PageInfoData | null>(
+    null,
+  );
+  const [discoverQuery, setDiscoverQuery] = useState<string | undefined>();
+  const [isDiscoverLoading, setIsDiscoverLoading] = useState(false);
   const [myJoinRequests, setMyJoinRequests] = useState<TeamJoinRequestData[]>(
     [],
   );
+  const [myJoinRequestsPageInfo, setMyJoinRequestsPageInfo] =
+    useState<PageInfoData | null>(null);
+  const [isMyJoinRequestsLoading, setIsMyJoinRequestsLoading] = useState(false);
   const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -138,26 +151,57 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
     }
   }
 
-  async function loadDiscoverableTeams(query?: string) {
+  async function loadDiscoverableTeams(
+    params: {
+      append?: boolean;
+      cursor?: string | null;
+      query?: string;
+    } = {},
+  ) {
+    setIsDiscoverLoading(true);
+
     try {
       const response = await discoverTeams(accessToken, {
-        q: query,
+        cursor: params.cursor,
+        q: params.query,
         limit: 8,
       });
-      setDiscoverableTeams(response.data.teams);
+      setDiscoverableTeams((current) =>
+        params.append
+          ? [...current, ...response.data.teams]
+          : response.data.teams,
+      );
+      setDiscoverPageInfo(response.data.pageInfo);
     } catch (error) {
       setMessage(getErrorMessage(error));
+    } finally {
+      setIsDiscoverLoading(false);
     }
   }
 
-  async function loadMyJoinRequests() {
+  async function loadMyJoinRequests(
+    params: {
+      append?: boolean;
+      cursor?: string | null;
+    } = {},
+  ) {
+    setIsMyJoinRequestsLoading(true);
+
     try {
       const response = await listMyJoinRequests(accessToken, {
+        cursor: params.cursor,
         limit: 10,
       });
-      setMyJoinRequests(response.data.joinRequests);
+      setMyJoinRequests((current) =>
+        params.append
+          ? [...current, ...response.data.joinRequests]
+          : response.data.joinRequests,
+      );
+      setMyJoinRequestsPageInfo(response.data.pageInfo ?? null);
     } catch (error) {
       setMessage(getErrorMessage(error));
+    } finally {
+      setIsMyJoinRequestsLoading(false);
     }
   }
 
@@ -204,7 +248,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
 
   async function refreshSelectedTeam() {
     await loadReceivedInvites();
-    await loadDiscoverableTeams();
+    await loadDiscoverableTeams({ query: discoverQuery });
     await loadMyJoinRequests();
 
     if (!selectedTeamId) {
@@ -216,8 +260,8 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
+    <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-3 py-3 sm:px-5 sm:py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
@@ -248,21 +292,43 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
         }}
       />
 
-      <div className="grid gap-4 border-b border-slate-200 px-5 py-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="grid min-w-0 gap-4 border-b border-slate-200 px-3 py-3 sm:px-5 sm:py-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <DiscoverTeamsPanel
           accessToken={accessToken}
+          isLoading={isDiscoverLoading}
+          pageInfo={discoverPageInfo}
           teams={discoverableTeams}
           onChanged={async () => {
-            await loadDiscoverableTeams();
+            await loadDiscoverableTeams({ query: discoverQuery });
             await loadMyJoinRequests();
           }}
-          onSearch={loadDiscoverableTeams}
+          onLoadMore={async () => {
+            await loadDiscoverableTeams({
+              append: true,
+              cursor: discoverPageInfo?.nextCursor,
+              query: discoverQuery,
+            });
+          }}
+          onSearch={async (query) => {
+            setDiscoverQuery(query);
+            await loadDiscoverableTeams({ query });
+          }}
         />
-        <MyJoinRequestsPanel joinRequests={myJoinRequests} />
+        <MyJoinRequestsPanel
+          isLoading={isMyJoinRequestsLoading}
+          joinRequests={myJoinRequests}
+          onLoadMore={async () => {
+            await loadMyJoinRequests({
+              append: true,
+              cursor: myJoinRequestsPageInfo?.nextCursor,
+            });
+          }}
+          pageInfo={myJoinRequestsPageInfo}
+        />
       </div>
 
-      <div className="grid min-h-[34rem] gap-0 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <aside className="border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
+      <div className="grid min-h-[34rem] min-w-0 gap-0 lg:grid-cols-[20rem_minmax(0,1fr)]">
+        <aside className="min-w-0 border-b border-slate-200 p-3 sm:p-4 lg:border-b-0 lg:border-r">
           <button
             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
             onClick={refreshSelectedTeam}
@@ -280,7 +346,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
           />
         </aside>
 
-        <div className="min-w-0 p-5">
+        <div className="min-w-0 p-3 sm:p-5">
           {message ? (
             <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
               {message}
@@ -294,7 +360,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
               text="Refresh the workspace after checking your session."
             />
           ) : selectedTeam ? (
-            <div className="space-y-5">
+            <div className="min-w-0 space-y-5">
               <TeamOverview
                 accessToken={accessToken}
                 canEdit={canEditTeamSettings}
@@ -304,7 +370,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
                 onUpdated={handleTeamUpdated}
                 team={selectedTeam}
               />
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+              <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
                 <TeamMembersPanel
                   accessToken={accessToken}
                   canManage={canManageMembers}
@@ -404,7 +470,7 @@ function ReceivedInvitesPanel({
   }
 
   return (
-    <section className="border-b border-slate-200 bg-emerald-50/60 px-5 py-4">
+    <section className="border-b border-slate-200 bg-emerald-50/60 px-3 py-3 sm:px-5 sm:py-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-950">
@@ -438,9 +504,9 @@ function ReceivedInvitesPanel({
             {invite.message ? (
               <p className="mt-2 text-sm text-slate-600">{invite.message}</p>
             ) : null}
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row">
               <button
-                className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-70"
+                className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-70"
                 disabled={busyInviteId === invite.id}
                 onClick={() => void respond(invite.id, "accept")}
                 type="button"
@@ -453,7 +519,7 @@ function ReceivedInvitesPanel({
                 Accept
               </button>
               <button
-                className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-70"
+                className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-70"
                 disabled={busyInviteId === invite.id}
                 onClick={() => void respond(invite.id, "reject")}
                 type="button"
@@ -471,22 +537,47 @@ function ReceivedInvitesPanel({
 
 interface DiscoverTeamsPanelProps {
   accessToken: string;
+  isLoading: boolean;
+  onLoadMore: () => void | Promise<void>;
   teams: TeamDiscoveryData[];
   onChanged: () => void | Promise<void>;
   onSearch: (query?: string) => void | Promise<void>;
+  pageInfo: PageInfoData | null;
 }
 
 function DiscoverTeamsPanel({
   accessToken,
+  isLoading,
+  onLoadMore,
   teams,
   onChanged,
   onSearch,
+  pageInfo,
 }: DiscoverTeamsPanelProps) {
   const [query, setQuery] = useState("");
+  const isInitialSearch = useRef(true);
+  const onSearchRef = useRef(onSearch);
   const [messageByTeamId, setMessageByTeamId] = useState<
     Record<string, string>
   >({});
   const [busyTeamId, setBusyTeamId] = useState<string | null>(null);
+
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
+  useEffect(() => {
+    if (isInitialSearch.current) {
+      isInitialSearch.current = false;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void onSearchRef.current(query.trim() || undefined);
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [query]);
 
   async function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -515,7 +606,7 @@ function DiscoverTeamsPanel({
   }
 
   return (
-    <section>
+    <section className="min-w-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-base font-semibold text-slate-950">
@@ -525,7 +616,7 @@ function DiscoverTeamsPanel({
             Find public/internal teams and request access.
           </p>
         </div>
-        <form className="flex gap-2 sm:w-80" onSubmit={handleSearch}>
+        <form className="flex min-w-0 gap-2 sm:w-80" onSubmit={handleSearch}>
           <input
             className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
             onChange={(event) => setQuery(event.target.value)}
@@ -541,7 +632,8 @@ function DiscoverTeamsPanel({
           </button>
         </form>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="mt-4 max-h-[28rem] overflow-y-auto pr-1">
+        <div className="grid min-w-0 gap-3 md:grid-cols-2">
         {teams.map((team) => {
           const cannotRequest =
             team.joinPolicy === "INVITE_ONLY" ||
@@ -549,7 +641,7 @@ function DiscoverTeamsPanel({
 
           return (
             <article
-              className="rounded-md border border-slate-200 bg-white p-3"
+              className="min-w-0 rounded-md border border-slate-200 bg-white p-3"
               key={team.id}
             >
               <div className="flex items-start justify-between gap-3">
@@ -568,12 +660,12 @@ function DiscoverTeamsPanel({
                   {team.description}
                 </p>
               ) : null}
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <p className="truncate text-xs text-slate-500">
+              <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
+                <p className="min-w-0 truncate text-xs text-slate-500">
                   Owner: {team.owner.name}
                 </p>
                 <button
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={cannotRequest || busyTeamId === team.id}
                   onClick={() => void requestToJoin(team)}
                   type="button"
@@ -595,7 +687,21 @@ function DiscoverTeamsPanel({
           );
         })}
         {teams.length === 0 ? (
-          <p className="text-sm text-slate-500">No discoverable teams found.</p>
+          <p className="text-sm text-slate-500">
+            {isLoading ? "Searching teams..." : "No discoverable teams found."}
+          </p>
+        ) : null}
+        </div>
+        {pageInfo?.hasNextPage ? (
+          <button
+            className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isLoading}
+            onClick={() => void onLoadMore()}
+            type="button"
+          >
+            {isLoading ? <Loader2 className="size-4 animate-spin" /> : null}
+            Load more teams
+          </button>
         ) : null}
       </div>
     </section>
@@ -603,22 +709,28 @@ function DiscoverTeamsPanel({
 }
 
 function MyJoinRequestsPanel({
+  isLoading,
   joinRequests,
+  onLoadMore,
+  pageInfo,
 }: {
+  isLoading: boolean;
   joinRequests: TeamJoinRequestData[];
+  onLoadMore: () => void | Promise<void>;
+  pageInfo: PageInfoData | null;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 p-4">
+    <section className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-slate-950">
           My join requests
         </h3>
         <Shield className="size-5 text-slate-400" />
       </div>
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
         {joinRequests.map((request) => (
           <article
-            className="rounded-md border border-slate-200 bg-slate-50 p-3"
+            className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3"
             key={request.id}
           >
             <div className="flex items-start justify-between gap-3">
@@ -635,7 +747,20 @@ function MyJoinRequestsPanel({
           </article>
         ))}
         {joinRequests.length === 0 ? (
-          <p className="text-sm text-slate-500">No join requests sent yet.</p>
+          <p className="text-sm text-slate-500">
+            {isLoading ? "Loading requests..." : "No join requests sent yet."}
+          </p>
+        ) : null}
+        {pageInfo?.hasNextPage ? (
+          <button
+            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isLoading}
+            onClick={() => void onLoadMore()}
+            type="button"
+          >
+            {isLoading ? <Loader2 className="size-4 animate-spin" /> : null}
+            Load more requests
+          </button>
         ) : null}
       </div>
     </section>
@@ -650,7 +775,6 @@ function CreateTeamDialog({
 }: CreateTeamDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
   const [visibility, setVisibility] = useState<TeamVisibility>("PRIVATE");
   const [joinPolicy, setJoinPolicy] =
     useState<TeamJoinPolicy>("INVITE_OR_REQUEST");
@@ -672,13 +796,11 @@ function CreateTeamDialog({
       const response = await createTeam(accessToken, {
         name,
         description: description.trim() || null,
-        avatarUrl: avatarUrl.trim() || null,
         visibility,
         joinPolicy,
       });
       setName("");
       setDescription("");
-      setAvatarUrl("");
       await onCreated(response.data.team);
     } catch (error) {
       setMessage(getErrorMessage(error));
@@ -694,10 +816,10 @@ function CreateTeamDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
       <form
-        className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
+      className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
         onSubmit={handleSubmit}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
           <div>
             <h3 className="text-lg font-semibold text-slate-950">
               Create team
@@ -716,7 +838,7 @@ function CreateTeamDialog({
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-5">
+        <div className="space-y-4 px-4 py-5 sm:px-5">
           <TextField
             label="Team name"
             onChange={setName}
@@ -731,11 +853,6 @@ function CreateTeamDialog({
               value={description}
             />
           </label>
-          <TextField
-            label="Avatar URL"
-            onChange={setAvatarUrl}
-            value={avatarUrl}
-          />
           <div className="grid gap-3 sm:grid-cols-2">
             <SelectField
               label="Visibility"
@@ -755,7 +872,7 @@ function CreateTeamDialog({
           ) : null}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:justify-end sm:px-5">
           <button
             className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
             onClick={onClose}
@@ -806,7 +923,7 @@ function TeamList({
       ) : null}
       {teams.map((team) => (
         <button
-          className={`w-full rounded-md border px-3 py-3 text-left transition ${
+          className={`w-full min-w-0 rounded-md border px-3 py-3 text-left transition ${
             selectedTeamId === team.id
               ? "border-emerald-300 bg-emerald-50"
               : "border-slate-200 bg-white hover:bg-slate-50"
@@ -866,7 +983,9 @@ function TeamOverview({
   const [joinPolicy, setJoinPolicy] = useState<TeamJoinPolicy>(team.joinPolicy);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAvatarSaving, setIsAvatarSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [avatarMessage, setAvatarMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -920,15 +1039,54 @@ function TeamOverview({
     }
   }
 
+  async function handleAvatarUpload(file: File) {
+    if (!canEdit) {
+      return;
+    }
+
+    setIsAvatarSaving(true);
+    setAvatarMessage(null);
+
+    try {
+      const response = await updateTeamAvatar(accessToken, team.id, file);
+      onUpdated(response.data.team);
+      setAvatarMessage(response.message || "Team avatar updated.");
+    } catch (error) {
+      setAvatarMessage(getErrorMessage(error));
+      throw error;
+    } finally {
+      setIsAvatarSaving(false);
+    }
+  }
+
+  async function handleAvatarRemove() {
+    if (!canEdit) {
+      return;
+    }
+
+    setIsAvatarSaving(true);
+    setAvatarMessage(null);
+
+    try {
+      const response = await removeTeamAvatar(accessToken, team.id);
+      onUpdated(response.data.team);
+      setAvatarMessage(response.message || "Team avatar removed.");
+    } catch (error) {
+      setAvatarMessage(getErrorMessage(error));
+    } finally {
+      setIsAvatarSaving(false);
+    }
+  }
+
   return (
     <form
-      className="rounded-lg border border-slate-200 p-4"
+      className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4"
       onSubmit={handleSubmit}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-emerald-700">/{team.slug}</p>
-          <h3 className="mt-1 truncate text-2xl font-semibold text-slate-950">
+          <h3 className="mt-1 truncate text-xl font-semibold text-slate-950 sm:text-2xl">
             {team.name}
           </h3>
           <p className="mt-1 text-sm text-slate-500">
@@ -941,6 +1099,17 @@ function TeamOverview({
         </div>
       </div>
 
+      <div className="mt-5">
+        <AvatarUploadControl
+          avatarUrl={team.avatarUrl}
+          disabled={!canEdit || isAvatarSaving}
+          message={avatarMessage}
+          name={team.name}
+          onRemove={handleAvatarRemove}
+          onUpload={handleAvatarUpload}
+        />
+      </div>
+
       <div className="mt-5 grid gap-3 md:grid-cols-2">
         <TextField
           disabled={!canEdit}
@@ -948,7 +1117,7 @@ function TeamOverview({
           onChange={setName}
           value={name}
         />
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           <SelectField
             disabled={!canEdit}
             label="Visibility"
@@ -975,12 +1144,12 @@ function TeamOverview({
           value={description}
         />
       </label>
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm font-medium text-slate-500">{message}</p>
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex w-full flex-col gap-2 min-[360px]:flex-row min-[360px]:justify-end sm:w-auto">
           {canDelete ? (
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-md border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
               disabled={isDeleting || isSaving}
               onClick={() => void handleDelete()}
               type="button"
@@ -995,7 +1164,7 @@ function TeamOverview({
           ) : null}
           {canEdit ? (
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
               disabled={isSaving || isDeleting}
               type="submit"
             >
@@ -1041,7 +1210,7 @@ function TeamMembersPanel({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 p-4">
+    <section className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-slate-950">Members</h3>
         <UsersRound className="size-5 text-slate-400" />
@@ -1049,7 +1218,7 @@ function TeamMembersPanel({
       <div className="mt-4 space-y-3">
         {members.map((member) => (
           <article
-            className="flex flex-col gap-3 rounded-md bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex min-w-0 flex-col gap-3 rounded-md bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"
             key={member.id}
           >
             <div className="flex min-w-0 items-center gap-3">
@@ -1069,10 +1238,10 @@ function TeamMembersPanel({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               {canManage && member.role !== "OWNER" ? (
                 <select
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
+                  className="h-9 min-w-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
                   onChange={(event) =>
                     void handleRoleChange(
                       member.id,
@@ -1187,7 +1356,7 @@ function TeamInvitePanel({
   );
 
   return (
-    <section className="rounded-lg border border-slate-200 p-4">
+    <section className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-slate-950">Invites</h3>
         <UserPlus className="size-5 text-slate-400" />
@@ -1214,7 +1383,7 @@ function TeamInvitePanel({
           <div className="mt-3 space-y-2">
             {users.map((user) => (
               <button
-                className={`flex w-full items-center gap-2 rounded-md border p-2 text-left ${
+              className={`flex w-full min-w-0 items-center gap-2 rounded-md border p-2 text-left ${
                   selectedUser?.id === user.id
                     ? "border-emerald-300 bg-emerald-50"
                     : "border-slate-200 bg-white"
@@ -1234,22 +1403,27 @@ function TeamInvitePanel({
               </button>
             ))}
           </div>
-          <div className="mt-3 flex gap-2">
-            <select
-              className="h-10 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700"
-              onChange={(event) =>
-                setRole(event.target.value as Exclude<TeamMemberRole, "OWNER">)
-              }
-              value={role}
-            >
-              {editableMemberRoles.map((option) => (
-                <option key={option} value={option}>
-                  {formatEnum(option)}
-                </option>
-              ))}
-            </select>
+          <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <select
+                className="h-10 w-full min-w-0 appearance-none rounded-md border border-slate-200 bg-white px-3 pr-9 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
+                onChange={(event) =>
+                  setRole(
+                    event.target.value as Exclude<TeamMemberRole, "OWNER">,
+                  )
+                }
+                value={role}
+              >
+                {editableMemberRoles.map((option) => (
+                  <option key={option} value={option}>
+                    {formatEnum(option)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+            </div>
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-70"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-70"
               disabled={isBusy}
               onClick={() => void handleInvite()}
               type="button"
@@ -1316,7 +1490,7 @@ function JoinRequestsPanel({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 p-4">
+    <section className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-slate-950">
           Join requests
@@ -1326,10 +1500,10 @@ function JoinRequestsPanel({
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {pendingRequests.map((request) => (
           <article
-            className="rounded-md border border-slate-200 bg-slate-50 p-3"
+            className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3"
             key={request.id}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <UserAvatar
                 avatarUrl={request.user.avatarUrl}
                 name={request.user.name}
@@ -1345,9 +1519,9 @@ function JoinRequestsPanel({
               </div>
             </div>
             {canManage ? (
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row">
                 <button
-                  className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800"
+                  className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800"
                   onClick={() => void review(request.id, "approve")}
                   type="button"
                 >
@@ -1355,7 +1529,7 @@ function JoinRequestsPanel({
                   Approve
                 </button>
                 <button
-                  className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                  className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
                   onClick={() => void review(request.id, "reject")}
                   type="button"
                 >
@@ -1383,7 +1557,7 @@ interface TextFieldProps {
 
 function TextField({ disabled, label, onChange, value }: TextFieldProps) {
   return (
-    <label className="block text-sm font-semibold text-slate-800">
+    <label className="block min-w-0 text-sm font-semibold text-slate-800">
       {label}
       <input
         className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-500"
@@ -1411,7 +1585,7 @@ function SelectField({
   value,
 }: SelectFieldProps) {
   return (
-    <label className="block text-xs font-semibold text-slate-500">
+    <label className="block min-w-0 text-xs font-semibold text-slate-500">
       {label}
       <select
         className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100 disabled:bg-slate-50"
@@ -1431,7 +1605,7 @@ function SelectField({
 
 function RoleBadge({ role }: { role: TeamMemberRole }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
       {role === "OWNER" ? <Crown className="size-3" /> : null}
       {formatEnum(role)}
     </span>
@@ -1440,7 +1614,7 @@ function RoleBadge({ role }: { role: TeamMemberRole }) {
 
 function StatusPill({ value }: { value: string }) {
   return (
-    <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+    <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
       {formatEnum(value)}
     </span>
   );

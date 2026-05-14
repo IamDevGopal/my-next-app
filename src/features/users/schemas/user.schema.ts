@@ -28,7 +28,6 @@ export const updateCurrentUserSchema = z.object({
         .max(40)
         .nullable(),
     ),
-  avatarUrl: optionalUrl,
   bio: optionalText(500),
   timezone: optionalText(64),
   headline: optionalText(160),

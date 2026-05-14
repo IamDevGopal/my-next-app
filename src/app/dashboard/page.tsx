@@ -103,52 +103,54 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
+    <main className="min-h-screen overflow-x-hidden bg-slate-100">
       <div className="grid min-h-screen lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <aside className="border-b border-slate-200 bg-white px-4 py-5 lg:border-b-0 lg:border-r">
-          <div className="flex items-center gap-3 px-2">
-            <div className="flex size-10 items-center justify-center rounded-md bg-emerald-700 text-white">
-              <LayoutDashboard className="size-5" />
+        <aside className="sticky top-0 z-30 border-b border-slate-200 bg-white p-3 shadow-sm sm:p-6 lg:flex lg:h-screen lg:flex-col lg:border-b-0 lg:border-r lg:shadow-none">
+          <div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md bg-emerald-700 text-white sm:size-10">
+                <LayoutDashboard className="size-4 sm:size-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-700">
+                  TaskFlow
+                </p>
+                <h1 className="text-base font-semibold text-slate-950">
+                  Workspace
+                </h1>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-emerald-700">
-                TaskFlow
-              </p>
-              <h1 className="text-base font-semibold text-slate-950">
-                Workspace
-              </h1>
-            </div>
+
+            <nav className="mt-3 grid grid-cols-3 gap-1 sm:mt-6 lg:grid-cols-1">
+              <NavButton
+                active={activeView === "teams"}
+                icon={<UsersRound className="size-4" />}
+                label="Teams"
+                onClick={() => setActiveView("teams")}
+              />
+              <NavButton
+                active={activeView === "profile"}
+                icon={<UserCircle2 className="size-4" />}
+                label="Profile"
+                onClick={() => setActiveView("profile")}
+              />
+              <NavButton
+                active={activeView === "people"}
+                icon={<Search className="size-4" />}
+                label="People"
+                onClick={() => setActiveView("people")}
+              />
+            </nav>
           </div>
 
-          <nav className="mt-6 grid gap-1">
-            <NavButton
-              active={activeView === "teams"}
-              icon={<UsersRound className="size-4" />}
-              label="Teams"
-              onClick={() => setActiveView("teams")}
-            />
-            <NavButton
-              active={activeView === "profile"}
-              icon={<UserCircle2 className="size-4" />}
-              label="Profile"
-              onClick={() => setActiveView("profile")}
-            />
-            <NavButton
-              active={activeView === "people"}
-              icon={<Search className="size-4" />}
-              label="People"
-              onClick={() => setActiveView("people")}
-            />
-          </nav>
-
-          <div className="mt-6 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 sm:mt-6 sm:block sm:p-3 lg:mt-auto">
             <div className="flex items-center gap-3">
               <UserAvatar
                 avatarUrl={user.avatarUrl}
                 name={user.name}
                 size="sm"
               />
-              <div className="min-w-0">
+              <div className="min-w-0 max-[360px]:hidden sm:block">
                 <p className="truncate text-sm font-semibold text-slate-950">
                   {user.name}
                 </p>
@@ -158,18 +160,18 @@ export default function DashboardPage() {
               </div>
             </div>
             <button
-              className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 sm:mt-3 sm:h-10 sm:w-full"
               onClick={logout}
               type="button"
             >
               <LogOut className="size-4" />
-              Logout
+              <span className="max-[360px]:sr-only">Logout</span>
             </button>
           </div>
         </aside>
 
-        <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl">
+        <section className="min-w-0 p-3 sm:p-6">
+          <div className="mx-auto max-w-7xl min-w-0">
             <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-emerald-700">
@@ -179,7 +181,7 @@ export default function DashboardPage() {
                       ? "Account"
                       : "Network"}
                 </p>
-                <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                <h2 className="mt-1 text-xl font-semibold text-slate-950 sm:text-2xl">
                   {activeView === "teams"
                     ? "Teams"
                     : activeView === "profile"
@@ -194,7 +196,7 @@ export default function DashboardPage() {
                       : "Search users before inviting them into teams."}
                 </p>
               </div>
-              <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <div className="flex w-full items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm sm:w-auto">
                 <UserAvatar
                   avatarUrl={user.avatarUrl}
                   name={user.name}
@@ -293,7 +295,7 @@ interface NavButtonProps {
 function NavButton({ active, icon, label, onClick }: NavButtonProps) {
   return (
     <button
-      className={`flex h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold transition ${
+      className={`flex h-10 min-w-0 items-center justify-center gap-2 rounded-md px-2 text-sm font-semibold transition sm:justify-start sm:gap-3 sm:px-3 ${
         active
           ? "bg-emerald-50 text-emerald-800"
           : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
@@ -302,7 +304,7 @@ function NavButton({ active, icon, label, onClick }: NavButtonProps) {
       type="button"
     >
       {icon}
-      {label}
+      <span className="max-[360px]:sr-only">{label}</span>
     </button>
   );
 }
