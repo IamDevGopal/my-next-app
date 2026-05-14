@@ -48,6 +48,28 @@ export interface TeamSummaryData {
   updatedAt: string;
 }
 
+export interface PageInfoData {
+  nextCursor: string | null;
+  hasNextPage: boolean;
+}
+
+export interface TeamDiscoveryData {
+  id: string;
+  ownerId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  avatarUrl: string | null;
+  visibility: TeamVisibility;
+  status: TeamStatus;
+  joinPolicy: TeamJoinPolicy;
+  membersCount: number;
+  createdAt: string;
+  updatedAt: string;
+  owner: PublicUserData;
+  pendingJoinRequestId: string | null;
+}
+
 export interface TeamDetailData extends TeamSummaryData {
   owner: PublicUserData;
   members: TeamMemberData[];
@@ -77,6 +99,7 @@ export interface TeamJoinRequestData {
   status: JoinRequestStatus;
   reviewedAt: string | null;
   createdAt: string;
+  team: TeamInviteTeamData;
   user: PublicUserData;
   reviewedBy: PublicUserData | null;
 }
@@ -87,6 +110,12 @@ export interface TeamResponseData {
 
 export interface TeamsResponseData {
   teams: TeamSummaryData[];
+  pageInfo?: PageInfoData;
+}
+
+export interface TeamDiscoveryResponseData {
+  teams: TeamDiscoveryData[];
+  pageInfo: PageInfoData;
 }
 
 export interface TeamMembersResponseData {
@@ -99,6 +128,7 @@ export interface TeamInviteResponseData {
 
 export interface TeamInvitesResponseData {
   invites: TeamInviteData[];
+  pageInfo?: PageInfoData;
 }
 
 export interface TeamJoinRequestResponseData {
@@ -107,6 +137,7 @@ export interface TeamJoinRequestResponseData {
 
 export interface TeamJoinRequestsResponseData {
   joinRequests: TeamJoinRequestData[];
+  pageInfo?: PageInfoData;
 }
 
 export type CreateTeamPayload = CreateTeamFormValues;

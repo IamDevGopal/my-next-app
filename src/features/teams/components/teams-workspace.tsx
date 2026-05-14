@@ -22,10 +22,13 @@ import { getErrorMessage } from "@/lib/http/get-error-message";
 import {
   acceptTeamInvite,
   approveJoinRequest,
+  createJoinRequest,
   createTeam,
   createTeamInvite,
   deleteTeam,
+  discoverTeams,
   getTeam,
+  listMyJoinRequests,
   listReceivedTeamInvites,
   listTeamInvites,
   listTeamJoinRequests,
@@ -38,6 +41,7 @@ import {
 } from "../api/teams.api";
 import type {
   TeamDetailData,
+  TeamDiscoveryData,
   TeamInviteData,
   TeamJoinPolicy,
   TeamJoinRequestData,
@@ -76,6 +80,12 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
   const [receivedInvites, setReceivedInvites] = useState<TeamInviteData[]>([]);
   const [invites, setInvites] = useState<TeamInviteData[]>([]);
   const [joinRequests, setJoinRequests] = useState<TeamJoinRequestData[]>([]);
+  const [discoverableTeams, setDiscoverableTeams] = useState<
+    TeamDiscoveryData[]
+  >([]);
+  const [myJoinRequests, setMyJoinRequests] = useState<TeamJoinRequestData[]>(
+    [],
+  );
   const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -88,6 +98,8 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
   useEffect(() => {
     void loadTeams();
     void loadReceivedInvites();
+    void loadDiscoverableTeams();
+    void loadMyJoinRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
@@ -121,6 +133,29 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
     try {
       const response = await listReceivedTeamInvites(accessToken);
       setReceivedInvites(response.data.invites);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
+  }
+
+  async function loadDiscoverableTeams(query?: string) {
+    try {
+      const response = await discoverTeams(accessToken, {
+        q: query,
+        limit: 8,
+      });
+      setDiscoverableTeams(response.data.teams);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
+  }
+
+  async function loadMyJoinRequests() {
+    try {
+      const response = await listMyJoinRequests(accessToken, {
+        limit: 10,
+      });
+      setMyJoinRequests(response.data.joinRequests);
     } catch (error) {
       setMessage(getErrorMessage(error));
     }
@@ -169,6 +204,8 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
 
   async function refreshSelectedTeam() {
     await loadReceivedInvites();
+    await loadDiscoverableTeams();
+    await loadMyJoinRequests();
 
     if (!selectedTeamId) {
       await loadTeams();
@@ -210,6 +247,19 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
           await loadTeams();
         }}
       />
+
+      <div className="grid gap-4 border-b border-slate-200 px-5 py-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <DiscoverTeamsPanel
+          accessToken={accessToken}
+          teams={discoverableTeams}
+          onChanged={async () => {
+            await loadDiscoverableTeams();
+            await loadMyJoinRequests();
+          }}
+          onSearch={loadDiscoverableTeams}
+        />
+        <MyJoinRequestsPanel joinRequests={myJoinRequests} />
+      </div>
 
       <div className="grid min-h-[34rem] gap-0 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <aside className="border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
@@ -414,6 +464,179 @@ function ReceivedInvitesPanel({
             </div>
           </article>
         ))}
+      </div>
+    </section>
+  );
+}
+
+interface DiscoverTeamsPanelProps {
+  accessToken: string;
+  teams: TeamDiscoveryData[];
+  onChanged: () => void | Promise<void>;
+  onSearch: (query?: string) => void | Promise<void>;
+}
+
+function DiscoverTeamsPanel({
+  accessToken,
+  teams,
+  onChanged,
+  onSearch,
+}: DiscoverTeamsPanelProps) {
+  const [query, setQuery] = useState("");
+  const [messageByTeamId, setMessageByTeamId] = useState<
+    Record<string, string>
+  >({});
+  const [busyTeamId, setBusyTeamId] = useState<string | null>(null);
+
+  async function handleSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onSearch(query.trim() || undefined);
+  }
+
+  async function requestToJoin(team: TeamDiscoveryData) {
+    setBusyTeamId(team.id);
+    setMessageByTeamId((current) => ({ ...current, [team.id]: "" }));
+
+    try {
+      await createJoinRequest(accessToken, team.id);
+      setMessageByTeamId((current) => ({
+        ...current,
+        [team.id]: "Request sent.",
+      }));
+      await onChanged();
+    } catch (error) {
+      setMessageByTeamId((current) => ({
+        ...current,
+        [team.id]: getErrorMessage(error),
+      }));
+    } finally {
+      setBusyTeamId(null);
+    }
+  }
+
+  return (
+    <section>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-slate-950">
+            Discover teams
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Find public/internal teams and request access.
+          </p>
+        </div>
+        <form className="flex gap-2 sm:w-80" onSubmit={handleSearch}>
+          <input
+            className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search teams"
+            value={query}
+          />
+          <button
+            className="inline-flex size-10 items-center justify-center rounded-md bg-slate-950 text-white"
+            title="Search teams"
+            type="submit"
+          >
+            <Search className="size-4" />
+          </button>
+        </form>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {teams.map((team) => {
+          const cannotRequest =
+            team.joinPolicy === "INVITE_ONLY" ||
+            team.pendingJoinRequestId !== null;
+
+          return (
+            <article
+              className="rounded-md border border-slate-200 bg-white p-3"
+              key={team.id}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950">
+                    {team.name}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatEnum(team.visibility)} · {team.membersCount} members
+                  </p>
+                </div>
+                <StatusPill value={team.joinPolicy} />
+              </div>
+              {team.description ? (
+                <p className="mt-2 line-clamp-2 text-sm text-slate-600">
+                  {team.description}
+                </p>
+              ) : null}
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="truncate text-xs text-slate-500">
+                  Owner: {team.owner.name}
+                </p>
+                <button
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={cannotRequest || busyTeamId === team.id}
+                  onClick={() => void requestToJoin(team)}
+                  type="button"
+                >
+                  {busyTeamId === team.id ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="size-4" />
+                  )}
+                  {team.pendingJoinRequestId ? "Requested" : "Request"}
+                </button>
+              </div>
+              {messageByTeamId[team.id] ? (
+                <p className="mt-2 text-xs font-medium text-slate-500">
+                  {messageByTeamId[team.id]}
+                </p>
+              ) : null}
+            </article>
+          );
+        })}
+        {teams.length === 0 ? (
+          <p className="text-sm text-slate-500">No discoverable teams found.</p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function MyJoinRequestsPanel({
+  joinRequests,
+}: {
+  joinRequests: TeamJoinRequestData[];
+}) {
+  return (
+    <section className="rounded-lg border border-slate-200 p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold text-slate-950">
+          My join requests
+        </h3>
+        <Shield className="size-5 text-slate-400" />
+      </div>
+      <div className="mt-4 space-y-3">
+        {joinRequests.map((request) => (
+          <article
+            className="rounded-md border border-slate-200 bg-slate-50 p-3"
+            key={request.id}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-950">
+                  {request.team.name}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {request.message ?? "No message added"}
+                </p>
+              </div>
+              <StatusPill value={request.status} />
+            </div>
+          </article>
+        ))}
+        {joinRequests.length === 0 ? (
+          <p className="text-sm text-slate-500">No join requests sent yet.</p>
+        ) : null}
       </div>
     </section>
   );

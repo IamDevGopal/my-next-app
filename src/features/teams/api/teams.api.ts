@@ -2,16 +2,55 @@ import { apiRequest } from "@/lib/http/api-client";
 import type {
   CreateTeamInvitePayload,
   CreateTeamPayload,
+  InviteStatus,
   TeamInviteResponseData,
   TeamInvitesResponseData,
+  JoinRequestStatus,
+  TeamDiscoveryResponseData,
+  TeamJoinPolicy,
   TeamJoinRequestResponseData,
   TeamJoinRequestsResponseData,
   TeamMembersResponseData,
   TeamResponseData,
   TeamsResponseData,
+  TeamVisibility,
   UpdateTeamMemberPayload,
   UpdateTeamPayload,
 } from "../types/team.type";
+
+interface CursorQuery {
+  limit?: number;
+  cursor?: string | null;
+}
+
+interface TeamListQuery extends CursorQuery {
+  q?: string;
+}
+
+interface TeamDiscoveryQuery extends TeamListQuery {
+  visibility?: Exclude<TeamVisibility, "PRIVATE">;
+  joinPolicy?: TeamJoinPolicy;
+}
+
+interface TeamInviteListQuery extends CursorQuery {
+  status?: InviteStatus;
+}
+
+interface TeamJoinRequestListQuery extends CursorQuery {
+  status?: JoinRequestStatus;
+}
+
+function toSearchParams(query: Record<string, string | number | null | undefined>) {
+  const params = new URLSearchParams();
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  });
+
+  return params.toString();
+}
 
 export function createTeam(accessToken: string, payload: CreateTeamPayload) {
   return apiRequest<TeamResponseData>("/teams", {
@@ -21,8 +60,22 @@ export function createTeam(accessToken: string, payload: CreateTeamPayload) {
   });
 }
 
-export function listTeams(accessToken: string, limit = 20) {
-  return apiRequest<TeamsResponseData>(`/teams?limit=${limit}`, {
+export function listTeams(accessToken: string, query: TeamListQuery = {}) {
+  const params = toSearchParams({ limit: 20, ...query });
+
+  return apiRequest<TeamsResponseData>(`/teams?${params}`, {
+    method: "GET",
+    accessToken,
+  });
+}
+
+export function discoverTeams(
+  accessToken: string,
+  query: TeamDiscoveryQuery = {},
+) {
+  const params = toSearchParams({ limit: 10, ...query });
+
+  return apiRequest<TeamDiscoveryResponseData>(`/teams/discover?${params}`, {
     method: "GET",
     accessToken,
   });
@@ -103,15 +156,26 @@ export function createTeamInvite(
   });
 }
 
-export function listTeamInvites(accessToken: string, teamId: string) {
-  return apiRequest<TeamInvitesResponseData>(`/teams/${teamId}/invites`, {
+export function listTeamInvites(
+  accessToken: string,
+  teamId: string,
+  query: TeamInviteListQuery = {},
+) {
+  const params = toSearchParams({ limit: 20, ...query });
+
+  return apiRequest<TeamInvitesResponseData>(`/teams/${teamId}/invites?${params}`, {
     method: "GET",
     accessToken,
   });
 }
 
-export function listReceivedTeamInvites(accessToken: string) {
-  return apiRequest<TeamInvitesResponseData>("/team-invites", {
+export function listReceivedTeamInvites(
+  accessToken: string,
+  query: TeamInviteListQuery = {},
+) {
+  const params = toSearchParams({ limit: 20, ...query });
+
+  return apiRequest<TeamInvitesResponseData>(`/team-invites?${params}`, {
     method: "GET",
     accessToken,
   });
@@ -152,9 +216,30 @@ export function createJoinRequest(
   );
 }
 
-export function listTeamJoinRequests(accessToken: string, teamId: string) {
+export function listTeamJoinRequests(
+  accessToken: string,
+  teamId: string,
+  query: TeamJoinRequestListQuery = {},
+) {
+  const params = toSearchParams({ limit: 20, ...query });
+
   return apiRequest<TeamJoinRequestsResponseData>(
-    `/teams/${teamId}/join-requests`,
+    `/teams/${teamId}/join-requests?${params}`,
+    {
+      method: "GET",
+      accessToken,
+    },
+  );
+}
+
+export function listMyJoinRequests(
+  accessToken: string,
+  query: TeamJoinRequestListQuery = {},
+) {
+  const params = toSearchParams({ limit: 20, ...query });
+
+  return apiRequest<TeamJoinRequestsResponseData>(
+    `/team-join-requests?${params}`,
     {
       method: "GET",
       accessToken,
