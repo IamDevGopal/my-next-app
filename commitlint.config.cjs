@@ -3,8 +3,8 @@ module.exports = {
   parserPreset: {
     parserOpts: {
       headerPattern:
-        /^(✨|🐛|📚|💄|♻️|⚡|✅|🧹|🚀|🔧|⏪)\s+(\w+)(?:\(([^)]+)\))?(!)?:\s(.+)$/,
-      headerCorrespondence: ['emoji', 'type', 'scope', 'breaking', 'subject'],
+        /^(?:\S+\s+)?(\w+)(?:\(([^)]+)\))?(!)?:\s(.+)$/,
+      headerCorrespondence: ['type', 'scope', 'breaking', 'subject'],
     },
   },
   rules: {
