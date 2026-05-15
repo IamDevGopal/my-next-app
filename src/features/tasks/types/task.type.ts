@@ -28,7 +28,14 @@ export interface TaskAssigneeData {
   targetType: TaskAssignmentTarget;
   status: TaskAssignmentStatus;
   assignedAt: string;
+  assignedBy: PublicUserData;
   assigneeUser: PublicUserData | null;
+}
+
+export interface TaskAssignmentsResponseData {
+  taskId: string;
+  assignments: TaskAssigneeData[];
+  eligibleUsers: PublicUserData[];
 }
 
 export interface TaskPermissionsData {
@@ -84,4 +91,8 @@ export type UpdateTaskPayload = UpdateTaskFormValues;
 
 export interface UpdateTaskStatusPayload {
   status: TaskStatus;
+}
+
+export interface CreateTaskAssignmentPayload {
+  assigneeUserId: string;
 }

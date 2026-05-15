@@ -13,6 +13,7 @@ import {
   RefreshCcw,
   ShieldCheck,
   UserRound,
+  UsersRound,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -22,7 +23,10 @@ import { UserAvatar } from "@/features/users/components/user-avatar";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 import {
   archiveTask,
+  createTaskAssignment,
   createTask,
+  deleteTaskAssignment,
+  getTaskAssignments,
   listTasks,
   updateTask,
   updateTaskStatus,
@@ -37,6 +41,7 @@ import type {
   TaskPriority,
   TaskScope,
   TaskStatus,
+  TaskAssignmentsResponseData,
   UpdateTaskPayload,
 } from "../types/task.type";
 
@@ -250,6 +255,7 @@ function TaskCollection({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskData | null>(null);
+  const [assignmentTask, setAssignmentTask] = useState<TaskData | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] =
     useState<SelectFilterValue<TaskStatus>>("ALL");
@@ -550,6 +556,7 @@ function TaskCollection({
                   setEditingTask(task);
                   setIsDialogOpen(true);
                 }}
+                onManageAssignments={() => setAssignmentTask(task)}
                 onPriorityChange={(value) =>
                   void handlePriorityChange(task, value)
                 }
@@ -596,6 +603,13 @@ function TaskCollection({
         task={editingTask}
         team={team}
       />
+      <TaskAssignmentsDialog
+        accessToken={accessToken}
+        isOpen={assignmentTask !== null}
+        onClose={() => setAssignmentTask(null)}
+        onUpdated={refreshTasks}
+        task={assignmentTask}
+      />
     </section>
   );
 }
@@ -605,6 +619,7 @@ interface TaskCardProps {
   canCreateTeamTask: boolean;
   onArchive: () => void;
   onEdit: () => void;
+  onManageAssignments: () => void;
   onPriorityChange: (value: TaskPriority) => void;
   onStatusChange: (value: TaskStatus) => void;
   task: TaskData;
@@ -615,6 +630,7 @@ function TaskCard({
   canCreateTeamTask,
   onArchive,
   onEdit,
+  onManageAssignments,
   onPriorityChange,
   onStatusChange,
   task,
@@ -660,6 +676,14 @@ function TaskCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+            onClick={onManageAssignments}
+            title="View assignments"
+            type="button"
+          >
+            <UsersRound className="size-4" />
+          </button>
           {canMutate ? (
             <button
               className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-70"
@@ -743,6 +767,19 @@ function TaskCard({
           </>
         ) : null}
       </div>
+
+      {task.assignees.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {task.assignees.slice(0, 3).map((assignment) => (
+            <TaskAssigneeChip assignment={assignment} key={assignment.id} />
+          ))}
+          {task.assignees.length > 3 ? (
+            <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+              +{task.assignees.length - 3} more
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -1042,6 +1079,263 @@ function TaskEditorDialogContent({
   );
 }
 
+interface TaskAssignmentsDialogProps {
+  accessToken: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onUpdated: () => void | Promise<void>;
+  task: TaskData | null;
+}
+
+function TaskAssignmentsDialog({
+  accessToken,
+  isOpen,
+  onClose,
+  onUpdated,
+  task,
+}: TaskAssignmentsDialogProps) {
+  if (!isOpen || !task) {
+    return null;
+  }
+
+  return (
+    <TaskAssignmentsDialogContent
+      accessToken={accessToken}
+      key={task.id}
+      onClose={onClose}
+      onUpdated={onUpdated}
+      task={task}
+    />
+  );
+}
+
+function TaskAssignmentsDialogContent({
+  accessToken,
+  onClose,
+  onUpdated,
+  task,
+}: Omit<TaskAssignmentsDialogProps, "isOpen" | "task"> & { task: TaskData }) {
+  const [status, setStatus] = useState<CollectionStatus>("loading");
+  const [message, setMessage] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [busyAssignmentId, setBusyAssignmentId] = useState<string | null>(null);
+  const [assignmentsData, setAssignmentsData] =
+    useState<TaskAssignmentsResponseData | null>(null);
+
+  const canAssign = task.permissions.canAssign;
+  const isPersonalTask = task.scope === "PERSONAL";
+
+  useEffect(() => {
+    async function loadAssignments() {
+      setStatus("loading");
+      setMessage(null);
+
+      try {
+        const response = await getTaskAssignments(accessToken, task.id);
+        setAssignmentsData(response.data);
+        setSelectedUserId(getFirstAvailableEligibleUserId(response.data));
+        setStatus("ready");
+      } catch (error) {
+        setMessage(getErrorMessage(error));
+        setStatus("error");
+      }
+    }
+
+    void loadAssignments();
+  }, [accessToken, task.id]);
+
+  async function syncAssignments(
+    request: Promise<{ data: TaskAssignmentsResponseData }>,
+  ) {
+    const response = await request;
+    setAssignmentsData(response.data);
+    setSelectedUserId(getFirstAvailableEligibleUserId(response.data));
+    await onUpdated();
+  }
+
+  async function handleAddAssignment() {
+    if (!selectedUserId) {
+      setMessage("Choose a team member before assigning responsibility.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      await syncAssignments(
+        createTaskAssignment(accessToken, task.id, {
+          assigneeUserId: selectedUserId,
+        }),
+      );
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleRemoveAssignment(assignmentId: string) {
+    setBusyAssignmentId(assignmentId);
+    setMessage(null);
+
+    try {
+      await syncAssignments(
+        deleteTaskAssignment(accessToken, task.id, assignmentId),
+      );
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setBusyAssignmentId(null);
+    }
+  }
+
+  const assignments = assignmentsData?.assignments ?? [];
+  const availableUsers = getAvailableEligibleUsers(assignmentsData);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+      <section className="w-full max-w-2xl rounded-lg bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-950">
+              Task assignments
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">{task.title}</p>
+          </div>
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+            onClick={onClose}
+            title="Close"
+            type="button"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-4 py-5 sm:px-5">
+          {message ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+              {message}
+            </div>
+          ) : null}
+
+          {status === "loading" ? (
+            <div className="space-y-3">
+              <div className="h-11 animate-pulse rounded-md bg-slate-100" />
+              <div className="h-28 animate-pulse rounded-md bg-slate-100" />
+            </div>
+          ) : status === "error" ? (
+            <EmptyState
+              icon={<UsersRound className="size-5" />}
+              text="Refresh the task workspace and reopen this panel after checking API availability."
+              title="Assignments could not load"
+            />
+          ) : (
+            <>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <InlineSelect
+                    disabled={!canAssign || availableUsers.length === 0}
+                    label="Eligible team members"
+                    onChange={setSelectedUserId}
+                    options={
+                      availableUsers.length > 0
+                        ? availableUsers.map((user) => user.id)
+                        : [""]
+                    }
+                    optionLabels={
+                      availableUsers.length > 0
+                        ? Object.fromEntries(
+                            availableUsers.map((user) => [
+                              user.id,
+                              user.username
+                                ? `${user.name} (@${user.username})`
+                                : user.name,
+                            ]),
+                          )
+                        : { "": "No available assignees" }
+                    }
+                    value={availableUsers.length > 0 ? selectedUserId : ""}
+                    wrapperClassName="min-w-0 flex-1"
+                  />
+                  <button
+                    className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
+                    disabled={!canAssign || !selectedUserId || isSubmitting}
+                    onClick={() => void handleAddAssignment()}
+                    type="button"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Plus className="size-4" />
+                    )}
+                    Add assignee
+                  </button>
+                </div>
+
+                <p className="mt-3 text-sm text-slate-500">
+                  {isPersonalTask
+                    ? "Personal task assignments stay disabled in this first pass."
+                    : canAssign
+                      ? "Owners and editors can assign active team members here."
+                      : "You can review assignees here, but assignment controls stay read-only for this role."}
+                </p>
+              </div>
+
+              {assignments.length > 0 ? (
+                <div className="space-y-3">
+                  {assignments.map((assignment) => (
+                    <div
+                      className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                      key={assignment.id}
+                    >
+                      <div className="min-w-0">
+                        <TaskAssigneeChip assignment={assignment} />
+                        <p className="mt-2 text-xs text-slate-500">
+                          Assigned by {assignment.assignedBy.name} on{" "}
+                          {formatDateTime(assignment.assignedAt)}
+                        </p>
+                      </div>
+                      {canAssign ? (
+                        <button
+                          className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-rose-200 bg-white px-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-70"
+                          disabled={busyAssignmentId === assignment.id}
+                          onClick={() =>
+                            void handleRemoveAssignment(assignment.id)
+                          }
+                          type="button"
+                        >
+                          {busyAssignmentId === assignment.id ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            "Remove"
+                          )}
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={<UsersRound className="size-5" />}
+                  text={
+                    isPersonalTask
+                      ? "This first pass keeps personal tasks owner-scoped without explicit assignee records."
+                      : "Add the first assignee so responsibility is visible to the team."
+                  }
+                  title="No assignees yet"
+                />
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function TaskListSkeleton({ compact }: { compact: boolean }) {
   return (
     <div
@@ -1296,8 +1590,50 @@ function EmptyState({
   );
 }
 
+function TaskAssigneeChip({ assignment }: { assignment: TaskData["assignees"][number] }) {
+  const user = assignment.assigneeUser;
+
+  return (
+    <div className="inline-flex min-w-0 items-center gap-2 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+      {user ? (
+        <UserAvatar
+          avatarUrl={user.avatarUrl}
+          name={user.name}
+          size="sm"
+        />
+      ) : (
+        <div className="flex size-7 items-center justify-center rounded-full bg-white text-slate-500">
+          <UsersRound className="size-3.5" />
+        </div>
+      )}
+      <span className="truncate">
+        {user
+          ? user.username
+            ? `${user.name} (@${user.username})`
+            : user.name
+          : "Assigned target"}
+      </span>
+    </div>
+  );
+}
+
 function isTeamEditor(role: TeamSummaryData["currentUserRole"]) {
   return role === "OWNER" || role === "EDITOR";
+}
+
+function getAvailableEligibleUsers(data: TaskAssignmentsResponseData | null) {
+  if (!data) {
+    return [];
+  }
+
+  return data.eligibleUsers.filter(
+    (user) =>
+      !data.assignments.some((assignment) => assignment.assigneeUser?.id === user.id),
+  );
+}
+
+function getFirstAvailableEligibleUserId(data: TaskAssignmentsResponseData) {
+  return getAvailableEligibleUsers(data)[0]?.id ?? "";
 }
 
 function createTaskEditorDraft(task: TaskData | null): TaskEditorDraft {

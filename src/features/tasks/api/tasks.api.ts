@@ -1,6 +1,8 @@
 import { apiRequest } from "@/lib/http/api-client";
 import type {
+  CreateTaskAssignmentPayload,
   CreateTaskPayload,
+  TaskAssignmentsResponseData,
   TaskPriority,
   TaskResponseData,
   TaskScope,
@@ -92,4 +94,37 @@ export function archiveTask(accessToken: string, taskId: string) {
     method: "DELETE",
     accessToken,
   });
+}
+
+export function getTaskAssignments(accessToken: string, taskId: string) {
+  return apiRequest<TaskAssignmentsResponseData>(`/tasks/${taskId}/assignments`, {
+    method: "GET",
+    accessToken,
+  });
+}
+
+export function createTaskAssignment(
+  accessToken: string,
+  taskId: string,
+  payload: CreateTaskAssignmentPayload,
+) {
+  return apiRequest<TaskAssignmentsResponseData>(`/tasks/${taskId}/assignments`, {
+    method: "POST",
+    accessToken,
+    body: payload,
+  });
+}
+
+export function deleteTaskAssignment(
+  accessToken: string,
+  taskId: string,
+  assignmentId: string,
+) {
+  return apiRequest<TaskAssignmentsResponseData>(
+    `/tasks/${taskId}/assignments/${assignmentId}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
 }
