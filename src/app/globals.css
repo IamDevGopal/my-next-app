@@ -16,3 +16,19 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+button,
+a[href],
+select,
+summary,
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}

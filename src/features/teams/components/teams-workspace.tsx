@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AvatarUploadControl } from "@/features/media/components/avatar-upload-control";
+import { TeamTasksPanel } from "@/features/tasks/components/tasks-workspace";
 import { searchUsers } from "@/features/users/api/users.api";
 import { UserAvatar } from "@/features/users/components/user-avatar";
 import type { PublicUserData } from "@/features/users/types/user.type";
@@ -369,6 +370,12 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
                 onDeleted={handleTeamDeleted}
                 onUpdated={handleTeamUpdated}
                 team={selectedTeam}
+              />
+              <TeamTasksPanel
+                accessToken={accessToken}
+                currentUserRole={selectedTeam.currentUserRole}
+                teamId={selectedTeam.id}
+                teamName={selectedTeam.name}
               />
               <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
                 <TeamMembersPanel

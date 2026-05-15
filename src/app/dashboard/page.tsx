@@ -4,11 +4,12 @@ import {
   CalendarDays,
   CheckCircle2,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   Mail,
   Search,
+  Settings2,
   ShieldCheck,
-  UserCircle2,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ProfileForm } from "@/features/users/components/profile-form";
 import { TeamsWorkspace } from "@/features/teams/components/teams-workspace";
+import { TasksWorkspace } from "@/features/tasks/components/tasks-workspace";
 import { UserAvatar } from "@/features/users/components/user-avatar";
 import { UserSearchPanel } from "@/features/users/components/user-search-panel";
 import { getCurrentUser } from "@/features/users/api/users.api";
@@ -27,7 +29,7 @@ import {
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 type DashboardStatus = "loading" | "ready" | "error";
-type DashboardView = "teams" | "profile" | "people";
+type DashboardView = "teams" | "tasks" | "profile" | "people";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -104,8 +106,8 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-slate-100">
-      <div className="grid min-h-screen lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <aside className="sticky top-0 z-30 border-b border-slate-200 bg-white p-3 shadow-sm sm:p-6 lg:flex lg:h-screen lg:flex-col lg:border-b-0 lg:border-r lg:shadow-none">
+      <div className="grid min-h-screen items-stretch lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <aside className="z-30 border-b border-slate-200 bg-white p-3 shadow-sm sm:p-6 lg:flex lg:min-h-screen lg:self-stretch lg:flex-col lg:border-b-0 lg:border-r lg:shadow-none">
           <div>
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex size-9 items-center justify-center rounded-md bg-emerald-700 text-white sm:size-10">
@@ -129,10 +131,10 @@ export default function DashboardPage() {
                 onClick={() => setActiveView("teams")}
               />
               <NavButton
-                active={activeView === "profile"}
-                icon={<UserCircle2 className="size-4" />}
-                label="Profile"
-                onClick={() => setActiveView("profile")}
+                active={activeView === "tasks"}
+                icon={<ListTodo className="size-4" />}
+                label="Tasks"
+                onClick={() => setActiveView("tasks")}
               />
               <NavButton
                 active={activeView === "people"}
@@ -143,7 +145,7 @@ export default function DashboardPage() {
             </nav>
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 sm:mt-6 sm:block sm:p-3 lg:mt-auto">
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 sm:mt-6 sm:block sm:p-3 lg:sticky lg:bottom-6 lg:mt-6">
             <div className="flex items-center gap-3">
               <UserAvatar
                 avatarUrl={user.avatarUrl}
@@ -177,6 +179,8 @@ export default function DashboardPage() {
                 <p className="text-sm font-semibold text-emerald-700">
                   {activeView === "teams"
                     ? "Collaboration"
+                    : activeView === "tasks"
+                      ? "Execution"
                     : activeView === "profile"
                       ? "Account"
                       : "Network"}
@@ -184,6 +188,8 @@ export default function DashboardPage() {
                 <h2 className="mt-1 text-xl font-semibold text-slate-950 sm:text-2xl">
                   {activeView === "teams"
                     ? "Teams"
+                    : activeView === "tasks"
+                      ? "Tasks"
                     : activeView === "profile"
                       ? "Profile"
                       : "People"}
@@ -191,9 +197,11 @@ export default function DashboardPage() {
                 <p className="mt-1 text-sm text-slate-500">
                   {activeView === "teams"
                     ? "Create teams, manage members, invites, and join requests."
+                    : activeView === "tasks"
+                      ? "Track personal work, review team tasks, and update progress from one place."
                     : activeView === "profile"
                       ? "View and update your identity, contact, and public profile."
-                      : "Search users before inviting them into teams."}
+                    : "Search users before inviting them into teams."}
                 </p>
               </div>
               <div className="flex w-full items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm sm:w-auto">
@@ -210,11 +218,30 @@ export default function DashboardPage() {
                     {user.email}
                   </p>
                 </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    aria-label="Open profile settings"
+                    className={`inline-flex size-10 shrink-0 items-center justify-center rounded-md border transition ${
+                      activeView === "profile"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                    onClick={() => setActiveView("profile")}
+                    title="Profile settings"
+                    type="button"
+                  >
+                    <Settings2 className="size-4" />
+                  </button>
+                </div>
               </div>
             </header>
 
             {activeView === "teams" ? (
               <TeamsWorkspace accessToken={accessToken} />
+            ) : null}
+
+            {activeView === "tasks" ? (
+              <TasksWorkspace accessToken={accessToken} />
             ) : null}
 
             {activeView === "profile" ? (
