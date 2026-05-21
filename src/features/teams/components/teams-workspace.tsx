@@ -3,7 +3,6 @@
 import {
   Check,
   ChevronDown,
-  Crown,
   Edit3,
   Loader2,
   Plus,
@@ -25,6 +24,7 @@ import { getErrorMessage } from "@/lib/http/get-error-message";
 import {
   acceptTeamInvite,
   approveJoinRequest,
+  cancelJoinRequest,
   createJoinRequest,
   createTeam,
   createTeamInvite,
@@ -40,6 +40,7 @@ import {
   removeTeamMember,
   rejectTeamInvite,
   rejectJoinRequest,
+  revokeTeamInvite,
   updateTeam,
   updateTeamAvatar,
   updateTeamMember,
@@ -52,13 +53,15 @@ import type {
   TeamJoinPolicy,
   TeamJoinRequestData,
   TeamMemberData,
-  TeamMemberRole,
   TeamSummaryData,
   TeamVisibility,
 } from "../types/team.type";
+import { RoleBadge } from "./role-badge";
+import { RoleChangeDialog } from "./role-change-dialog";
 
 interface TeamsWorkspaceProps {
   accessToken: string;
+  currentUserId: string;
 }
 
 type TeamLoadStatus = "idle" | "loading" | "ready" | "error";
@@ -73,12 +76,9 @@ const teamJoinPolicyOptions: TeamJoinPolicy[] = [
   "REQUEST_ONLY",
   "INVITE_OR_REQUEST",
 ];
-const editableMemberRoles: Exclude<TeamMemberRole, "OWNER">[] = [
-  "EDITOR",
-  "VIEWER",
-];
 
-export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
+
+export function TeamsWorkspace({ accessToken, currentUserId }: TeamsWorkspaceProps) {
   const [status, setStatus] = useState<TeamLoadStatus>("idle");
   const [teams, setTeams] = useState<TeamSummaryData[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -316,6 +316,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
           }}
         />
         <MyJoinRequestsPanel
+          accessToken={accessToken}
           isLoading={isMyJoinRequestsLoading}
           joinRequests={myJoinRequests}
           onLoadMore={async () => {
@@ -328,7 +329,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
         />
       </div>
 
-      <div className="grid min-h-[34rem] min-w-0 gap-0 lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <div className="grid min-h-136 min-w-0 gap-0 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <aside className="min-w-0 border-b border-slate-200 p-3 sm:p-4 lg:border-b-0 lg:border-r">
           <button
             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
@@ -373,6 +374,7 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
               />
               <TeamTasksPanel
                 accessToken={accessToken}
+                currentUserId={currentUserId}
                 currentUserRole={selectedTeam.currentUserRole}
                 teamId={selectedTeam.id}
                 teamName={selectedTeam.name}
@@ -395,6 +397,11 @@ export function TeamsWorkspace({ accessToken }: TeamsWorkspaceProps) {
                   invites={invites}
                   onInviteCreated={(invite) =>
                     setInvites((current) => [invite, ...current])
+                  }
+                  onInviteRevoked={(inviteId) =>
+                    setInvites((current) =>
+                      current.filter((i) => i.id !== inviteId),
+                    )
                   }
                   teamId={selectedTeam.id}
                 />
@@ -639,7 +646,7 @@ function DiscoverTeamsPanel({
           </button>
         </form>
       </div>
-      <div className="mt-4 max-h-[28rem] overflow-y-auto pr-1">
+      <div className="mt-4 max-h-112 overflow-y-auto pr-1">
         <div className="grid min-w-0 gap-3 md:grid-cols-2">
         {teams.map((team) => {
           const cannotRequest =
@@ -716,16 +723,44 @@ function DiscoverTeamsPanel({
 }
 
 function MyJoinRequestsPanel({
+  accessToken,
   isLoading,
   joinRequests,
   onLoadMore,
   pageInfo,
 }: {
+  accessToken: string;
   isLoading: boolean;
   joinRequests: TeamJoinRequestData[];
   onLoadMore: () => void | Promise<void>;
   pageInfo: PageInfoData | null;
 }) {
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  async function handleCancel(requestId: string) {
+    const confirmed = window.confirm(
+      "Cancel this join request? You can request again later.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setCancellingId(requestId);
+    setCancelError(null);
+
+    try {
+      await cancelJoinRequest(accessToken, requestId);
+      // Reload to update the list
+      await onLoadMore();
+    } catch (error) {
+      setCancelError(getErrorMessage(error));
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   return (
     <section className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4">
       <div className="flex items-center justify-between">
@@ -734,13 +769,15 @@ function MyJoinRequestsPanel({
         </h3>
         <Shield className="size-5 text-slate-400" />
       </div>
-      <div className="mt-4 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
-        {joinRequests.map((request) => (
-          <article
-            className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3"
-            key={request.id}
-          >
-            <div className="flex items-start justify-between gap-3">
+      <div className="mt-4 max-h-112 space-y-3 overflow-y-auto pr-1">
+        {joinRequests.map((request) => {
+          const isPending = request.status === "PENDING";
+
+          return (
+            <article
+              className="flex min-w-0 items-start justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 p-3"
+              key={request.id}
+            >
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-950">
                   {request.team.name}
@@ -748,15 +785,43 @@ function MyJoinRequestsPanel({
                 <p className="mt-1 text-xs text-slate-500">
                   {request.message ?? "No message added"}
                 </p>
+                <div className="mt-1.5">
+                  <StatusPill value={request.status} />
+                </div>
               </div>
-              <StatusPill value={request.status} />
-            </div>
-          </article>
-        ))}
+              {isPending ? (
+                <button
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-500 transition hover:bg-rose-50 disabled:opacity-60"
+                  disabled={cancellingId === request.id}
+                  onClick={() => void handleCancel(request.id)}
+                  title="Cancel request"
+                  type="button"
+                >
+                  {cancellingId === request.id ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <X className="size-3.5" />
+                  )}
+                </button>
+              ) : null}
+              {cancelError && cancellingId === null ? (
+                <p className="mt-2 text-xs font-medium text-rose-600">
+                  {cancelError}
+                </p>
+              ) : null}
+            </article>
+          );
+        })}
         {joinRequests.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            {isLoading ? "Loading requests..." : "No join requests sent yet."}
-          </p>
+          <div className="rounded-md border border-dashed border-slate-200 p-4 text-center">
+            <Shield className="mx-auto size-8 text-slate-300" />
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              {isLoading ? "Loading requests..." : "No join requests sent yet."}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Discover teams above and request to join them.
+            </p>
+          </div>
         ) : null}
         {pageInfo?.hasNextPage ? (
           <button
@@ -1204,14 +1269,39 @@ function TeamMembersPanel({
   onMembersChanged,
   teamId,
 }: TeamMembersPanelProps) {
-  async function handleRoleChange(memberId: string, role: "EDITOR" | "VIEWER") {
-    const response = await updateTeamMember(accessToken, teamId, memberId, {
-      role,
-    });
-    onMembersChanged(response.data.members);
+  const [roleChangeMember, setRoleChangeMember] =
+    useState<TeamMemberData | null>(null);
+  const [isRoleChangeBusy, setIsRoleChangeBusy] = useState(false);
+  const [roleChangeError, setRoleChangeError] = useState<string | null>(null);
+
+  async function handleRoleChange(
+    memberId: string,
+    role: "EDITOR" | "VIEWER",
+  ) {
+    setIsRoleChangeBusy(true);
+
+    try {
+      const response = await updateTeamMember(accessToken, teamId, memberId, {
+        role,
+      });
+      onMembersChanged(response.data.members);
+      setRoleChangeMember(null);
+    } catch (error) {
+      setRoleChangeError(getErrorMessage(error));
+    } finally {
+      setIsRoleChangeBusy(false);
+    }
   }
 
   async function handleRemove(memberId: string) {
+    const confirmed = window.confirm(
+      "Remove this member from the team? This action can be undone by re-inviting them.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     const response = await removeTeamMember(accessToken, teamId, memberId);
     onMembersChanged(response.data.members);
   }
@@ -1225,7 +1315,7 @@ function TeamMembersPanel({
       <div className="mt-4 space-y-3">
         {members.map((member) => (
           <article
-            className="flex min-w-0 flex-col gap-3 rounded-md bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex min-w-0 flex-col gap-3 rounded-md bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between transition-all hover:bg-slate-100"
             key={member.id}
           >
             <div className="flex min-w-0 items-center gap-3">
@@ -1247,28 +1337,21 @@ function TeamMembersPanel({
             </div>
             <div className="flex min-w-0 items-center gap-2">
               {canManage && member.role !== "OWNER" ? (
-                <select
-                  className="h-9 min-w-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700"
-                  onChange={(event) =>
-                    void handleRoleChange(
-                      member.id,
-                      event.target.value as "EDITOR" | "VIEWER",
-                    )
-                  }
-                  value={member.role}
+                <button
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  onClick={() => setRoleChangeMember(member)}
+                  title="Change role"
+                  type="button"
                 >
-                  {editableMemberRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {formatEnum(role)}
-                    </option>
-                  ))}
-                </select>
+                  <RoleBadge role={member.role} showTooltip={false} />
+                  <ChevronDown className="size-3 text-slate-400" />
+                </button>
               ) : (
                 <RoleBadge role={member.role} />
               )}
               {canManage && member.role !== "OWNER" ? (
                 <button
-                  className="inline-flex size-9 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-600 hover:bg-rose-50"
+                  className="inline-flex size-9 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-600 transition hover:bg-rose-50"
                   onClick={() => void handleRemove(member.id)}
                   title="Remove member"
                   type="button"
@@ -1280,6 +1363,23 @@ function TeamMembersPanel({
           </article>
         ))}
       </div>
+
+      {roleChangeError ? (
+        <p className="mt-3 text-sm font-medium text-rose-600">{roleChangeError}</p>
+      ) : null}
+
+      {roleChangeMember ? (
+        <RoleChangeDialog
+          isBusy={isRoleChangeBusy}
+          isOpen={true}
+          member={roleChangeMember}
+          onClose={() => {
+            setRoleChangeMember(null);
+            setRoleChangeError(null);
+          }}
+          onConfirm={handleRoleChange}
+        />
+      ) : null}
     </section>
   );
 }
@@ -1289,6 +1389,7 @@ interface TeamInvitePanelProps {
   canInvite: boolean;
   invites: TeamInviteData[];
   onInviteCreated: (invite: TeamInviteData) => void;
+  onInviteRevoked: (inviteId: string) => void;
   teamId: string;
 }
 
@@ -1297,14 +1398,15 @@ function TeamInvitePanel({
   canInvite,
   invites,
   onInviteCreated,
+  onInviteRevoked,
   teamId,
 }: TeamInvitePanelProps) {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<PublicUserData[]>([]);
   const [selectedUser, setSelectedUser] = useState<PublicUserData | null>(null);
-  const [role, setRole] = useState<Exclude<TeamMemberRole, "OWNER">>("VIEWER");
   const [message, setMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
   async function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1343,7 +1445,7 @@ function TeamInvitePanel({
     try {
       const response = await createTeamInvite(accessToken, teamId, {
         inviteeUserId: selectedUser.id,
-        role,
+        role: "VIEWER",
       });
       onInviteCreated(response.data.invite);
       setSelectedUser(null);
@@ -1354,6 +1456,27 @@ function TeamInvitePanel({
       setMessage(getErrorMessage(error));
     } finally {
       setIsBusy(false);
+    }
+  }
+
+  async function handleRevoke(inviteId: string) {
+    const confirmed = window.confirm(
+      "Revoke this invite? The invited user will no longer be able to accept it.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setRevokingInviteId(inviteId);
+
+    try {
+      await revokeTeamInvite(accessToken, teamId, inviteId);
+      onInviteRevoked(inviteId);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setRevokingInviteId(null);
     }
   }
 
@@ -1412,22 +1535,7 @@ function TeamInvitePanel({
           </div>
           <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row">
             <div className="relative min-w-0 flex-1">
-              <select
-                className="h-10 w-full min-w-0 appearance-none rounded-md border border-slate-200 bg-white px-3 pr-9 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
-                onChange={(event) =>
-                  setRole(
-                    event.target.value as Exclude<TeamMemberRole, "OWNER">,
-                  )
-                }
-                value={role}
-              >
-                {editableMemberRoles.map((option) => (
-                  <option key={option} value={option}>
-                    {formatEnum(option)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
+              <RoleBadge role="VIEWER" size="md" />
             </div>
             <button
               className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-70"
@@ -1448,19 +1556,50 @@ function TeamInvitePanel({
       <div className="mt-4 space-y-2">
         {pendingInvites.map((invite) => (
           <div
-            className="rounded-md border border-slate-200 bg-white p-3"
+            className="flex min-w-0 items-center justify-between rounded-md border border-slate-200 bg-white p-3"
             key={invite.id}
           >
-            <p className="truncate text-sm font-semibold text-slate-950">
-              {invite.inviteeUser?.name ?? "Invited user"}
-            </p>
-            <p className="text-xs text-slate-500">
-              {formatEnum(invite.role)} · {formatEnum(invite.status)}
-            </p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-950">
+                {invite.inviteeUser?.name ?? "Invited user"}
+              </p>
+              <div className="mt-0.5 flex items-center gap-2">
+                <RoleBadge role={invite.role} size="sm" />
+                <span className="text-xs text-slate-400">·</span>
+                <span className="text-xs text-slate-500">
+                  {formatEnum(invite.status)}
+                </span>
+              </div>
+            </div>
+            {canInvite ? (
+              <button
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-500 transition hover:bg-rose-50 disabled:opacity-60"
+                disabled={revokingInviteId === invite.id}
+                onClick={() => void handleRevoke(invite.id)}
+                title="Revoke invite"
+                type="button"
+              >
+                {revokingInviteId === invite.id ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <X className="size-3.5" />
+                )}
+              </button>
+            ) : null}
           </div>
         ))}
         {pendingInvites.length === 0 ? (
-          <p className="text-sm text-slate-500">No pending invites.</p>
+          <div className="rounded-md border border-dashed border-slate-200 p-4 text-center">
+            <UserPlus className="mx-auto size-8 text-slate-300" />
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              No pending invites
+            </p>
+            {canInvite ? (
+              <p className="mt-0.5 text-xs text-slate-400">
+                Search for a user above to send an invite.
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </section>
@@ -1610,14 +1749,7 @@ function SelectField({
   );
 }
 
-function RoleBadge({ role }: { role: TeamMemberRole }) {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
-      {role === "OWNER" ? <Crown className="size-3" /> : null}
-      {formatEnum(role)}
-    </span>
-  );
-}
+
 
 function StatusPill({ value }: { value: string }) {
   return (

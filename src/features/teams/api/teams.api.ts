@@ -213,6 +213,20 @@ export function acceptTeamInvite(accessToken: string, inviteId: string) {
   );
 }
 
+export function revokeTeamInvite(
+  accessToken: string,
+  teamId: string,
+  inviteId: string,
+) {
+  return apiRequest<TeamInviteResponseData>(
+    `/teams/${teamId}/invites/${inviteId}/revoke`,
+    {
+      method: "POST",
+      accessToken,
+    },
+  );
+}
+
 export function rejectTeamInvite(accessToken: string, inviteId: string) {
   return apiRequest<TeamInviteResponseData>(
     `/team-invites/${inviteId}/reject`,
@@ -264,6 +278,16 @@ export function listMyJoinRequests(
     `/team-join-requests?${params}`,
     {
       method: "GET",
+      accessToken,
+    },
+  );
+}
+
+export function cancelJoinRequest(accessToken: string, requestId: string) {
+  return apiRequest<TeamJoinRequestResponseData>(
+    `/team-join-requests/${requestId}/cancel`,
+    {
+      method: "POST",
       accessToken,
     },
   );

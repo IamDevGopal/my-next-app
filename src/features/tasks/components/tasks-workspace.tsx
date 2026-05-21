@@ -9,6 +9,8 @@ import {
   FileText,
   Filter,
   Loader2,
+  MessageSquare,
+  Paperclip,
   Plus,
   RefreshCcw,
   ShieldCheck,
@@ -31,6 +33,8 @@ import {
   updateTask,
   updateTaskStatus,
 } from "../api/tasks.api";
+import { AttachmentsPanel } from "../components/attachments-panel";
+import { CommentsPanel } from "../components/comments-panel";
 import {
   CreateTaskFormSchema,
   UpdateTaskFormSchema,
@@ -47,10 +51,12 @@ import type {
 
 interface TasksWorkspaceProps {
   accessToken: string;
+  currentUserId: string;
 }
 
 interface TeamTasksPanelProps {
   accessToken: string;
+  currentUserId: string;
   teamId: string;
   teamName: string;
   currentUserRole: TeamSummaryData["currentUserRole"] | null;
@@ -74,7 +80,7 @@ const statusOptions: TaskStatus[] = [
 ];
 const priorityOptions: TaskPriority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 
-export function TasksWorkspace({ accessToken }: TasksWorkspaceProps) {
+export function TasksWorkspace({ accessToken, currentUserId }: TasksWorkspaceProps) {
   const [teams, setTeams] = useState<TeamSummaryData[]>([]);
   const [teamsMessage, setTeamsMessage] = useState<string | null>(null);
   const [isTeamsLoading, setIsTeamsLoading] = useState(true);
@@ -186,6 +192,7 @@ export function TasksWorkspace({ accessToken }: TasksWorkspaceProps) {
         {activeView === "personal" ? (
           <TaskCollection
             accessToken={accessToken}
+            currentUserId={currentUserId}
             heading="Personal tasks"
             scope="PERSONAL"
             subheading="Track solo work with the same backend rules and response contracts used by team tasks."
@@ -193,6 +200,7 @@ export function TasksWorkspace({ accessToken }: TasksWorkspaceProps) {
         ) : (
           <TaskCollection
             accessToken={accessToken}
+            currentUserId={currentUserId}
             heading={selectedTeam ? `${selectedTeam.name} tasks` : "Team tasks"}
             scope="TEAM"
             subheading="Shared task progress lives under the selected team's membership rules."
@@ -214,6 +222,7 @@ export function TasksWorkspace({ accessToken }: TasksWorkspaceProps) {
 
 export function TeamTasksPanel({
   accessToken,
+  currentUserId,
   teamId,
   teamName,
   currentUserRole,
@@ -221,6 +230,7 @@ export function TeamTasksPanel({
   return (
     <TaskCollection
       accessToken={accessToken}
+      currentUserId={currentUserId}
       compact
       heading="Team tasks"
       scope="TEAM"
@@ -232,6 +242,7 @@ export function TeamTasksPanel({
 
 interface TaskCollectionProps {
   accessToken: string;
+  currentUserId: string;
   compact?: boolean;
   heading: string;
   scope: Exclude<TaskScope, "SHARED">;
@@ -241,6 +252,7 @@ interface TaskCollectionProps {
 
 function TaskCollection({
   accessToken,
+  currentUserId,
   compact = false,
   heading,
   scope,
@@ -256,6 +268,8 @@ function TaskCollection({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskData | null>(null);
   const [assignmentTask, setAssignmentTask] = useState<TaskData | null>(null);
+  const [commentTask, setCommentTask] = useState<TaskData | null>(null);
+  const [attachmentTask, setAttachmentTask] = useState<TaskData | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] =
     useState<SelectFilterValue<TaskStatus>>("ALL");
@@ -557,6 +571,8 @@ function TaskCollection({
                   setIsDialogOpen(true);
                 }}
                 onManageAssignments={() => setAssignmentTask(task)}
+                onManageAttachments={() => setAttachmentTask(task)}
+                onManageComments={() => setCommentTask(task)}
                 onPriorityChange={(value) =>
                   void handlePriorityChange(task, value)
                 }
@@ -610,6 +626,22 @@ function TaskCollection({
         onUpdated={refreshTasks}
         task={assignmentTask}
       />
+      <TaskCommentsDialog
+        accessToken={accessToken}
+        currentUserId={currentUserId}
+        isOpen={commentTask !== null}
+        onClose={() => setCommentTask(null)}
+        onUpdated={refreshTasks}
+        task={commentTask}
+        teamRole={team?.role ?? null}
+      />
+      <TaskAttachmentsDialog
+        accessToken={accessToken}
+        isOpen={attachmentTask !== null}
+        onClose={() => setAttachmentTask(null)}
+        onUpdated={refreshTasks}
+        task={attachmentTask}
+      />
     </section>
   );
 }
@@ -620,6 +652,8 @@ interface TaskCardProps {
   onArchive: () => void;
   onEdit: () => void;
   onManageAssignments: () => void;
+  onManageAttachments: () => void;
+  onManageComments: () => void;
   onPriorityChange: (value: TaskPriority) => void;
   onStatusChange: (value: TaskStatus) => void;
   task: TaskData;
@@ -631,6 +665,8 @@ function TaskCard({
   onArchive,
   onEdit,
   onManageAssignments,
+  onManageAttachments,
+  onManageComments,
   onPriorityChange,
   onStatusChange,
   task,
@@ -676,6 +712,22 @@ function TaskCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+            onClick={onManageComments}
+            title="Comments"
+            type="button"
+          >
+            <MessageSquare className="size-4" />
+          </button>
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+            onClick={onManageAttachments}
+            title="Attachments"
+            type="button"
+          >
+            <Paperclip className="size-4" />
+          </button>
           <button
             className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
             onClick={onManageAssignments}
@@ -751,9 +803,13 @@ function TaskCard({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-        <span>{task.commentsCount} comments</span>
+        <button className="cursor-pointer underline-offset-2 hover:underline hover:text-slate-700" onClick={onManageComments} type="button">
+          {task.commentsCount} comment{task.commentsCount !== 1 ? "s" : ""}
+        </button>
         <span>/</span>
-        <span>{task.attachmentsCount} attachments</span>
+        <button className="cursor-pointer underline-offset-2 hover:underline hover:text-slate-700" onClick={onManageAttachments} type="button">
+          {task.attachmentsCount} attachment{task.attachmentsCount !== 1 ? "s" : ""}
+        </button>
         <span>/</span>
         <span>
           {task.assignees.length > 0
@@ -1330,6 +1386,129 @@ function TaskAssignmentsDialogContent({
               )}
             </>
           )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+interface TaskCommentsDialogProps {
+  accessToken: string;
+  currentUserId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onUpdated: () => void | Promise<void>;
+  task: TaskData | null;
+  teamRole: string | null;
+}
+
+function TaskCommentsDialog({
+  accessToken,
+  currentUserId,
+  isOpen,
+  onClose,
+  onUpdated,
+  task,
+  teamRole,
+}: TaskCommentsDialogProps) {
+  if (!isOpen || !task) {
+    return null;
+  }
+
+  async function handleClose() {
+    await onUpdated();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+      <section className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-slate-950">
+              Task comments
+            </h3>
+            <p className="mt-1 truncate text-sm text-slate-500">
+              {task.title}
+            </p>
+          </div>
+          <button
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+            onClick={handleClose}
+            title="Close"
+            type="button"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <CommentsPanel
+            accessToken={accessToken}
+            currentUserId={currentUserId}
+            permissions={task.permissions}
+            taskId={task.id}
+            teamRole={teamRole}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+interface TaskAttachmentsDialogProps {
+  accessToken: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onUpdated: () => void | Promise<void>;
+  task: TaskData | null;
+}
+
+function TaskAttachmentsDialog({
+  accessToken,
+  isOpen,
+  onClose,
+  onUpdated,
+  task,
+}: TaskAttachmentsDialogProps) {
+  if (!isOpen || !task) {
+    return null;
+  }
+
+  async function handleClose() {
+    await onUpdated();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+      <section className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-slate-950">
+              Task attachments
+            </h3>
+            <p className="mt-1 truncate text-sm text-slate-500">
+              {task.title}
+            </p>
+          </div>
+          <button
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+            onClick={handleClose}
+            title="Close"
+            type="button"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <AttachmentsPanel
+            accessToken={accessToken}
+            permissions={task.permissions}
+            taskId={task.id}
+            onUpdated={handleClose}
+          />
         </div>
       </section>
     </div>

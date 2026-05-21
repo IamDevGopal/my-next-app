@@ -237,11 +237,11 @@ export default function DashboardPage() {
             </header>
 
             {activeView === "teams" ? (
-              <TeamsWorkspace accessToken={accessToken} />
+              <TeamsWorkspace accessToken={accessToken} currentUserId={user.id} />
             ) : null}
 
             {activeView === "tasks" ? (
-              <TasksWorkspace accessToken={accessToken} />
+              <TasksWorkspace accessToken={accessToken} currentUserId={user.id} />
             ) : null}
 
             {activeView === "profile" ? (
