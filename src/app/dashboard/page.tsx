@@ -33,6 +33,7 @@ import {
   getAccessToken,
 } from "@/features/auth/utils/auth-storage";
 import { ChatWorkspace } from "@/features/chat/components/chat-workspace";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 type DashboardStatus = "loading" | "ready" | "error";
@@ -279,6 +280,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
+                  <NotificationBell accessToken={accessToken} />
                   <button
                     aria-label="Open profile settings"
                     className={`inline-flex size-10 shrink-0 items-center justify-center rounded-md border transition ${

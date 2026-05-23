@@ -67,6 +67,9 @@ export function LoginForm() {
       ) : null}
       <SubmitButton isSubmitting={isSubmitting}>Sign in</SubmitButton>
       <AuthFormLink href="/forgot-password">Forgot password?</AuthFormLink>
+      <AuthFormLink href="/register">
+        New to TaskFlow? Create an account
+      </AuthFormLink>
     </form>
   );
 }
