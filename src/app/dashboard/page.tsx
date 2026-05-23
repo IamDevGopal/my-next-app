@@ -3,10 +3,12 @@
 import {
   CalendarDays,
   CheckCircle2,
+  FileText,
   LayoutDashboard,
   ListTodo,
   LogOut,
   Mail,
+  MessageSquare,
   Search,
   Settings2,
   ShieldCheck,
@@ -21,15 +23,20 @@ import { TasksWorkspace } from "@/features/tasks/components/tasks-workspace";
 import { UserAvatar } from "@/features/users/components/user-avatar";
 import { UserSearchPanel } from "@/features/users/components/user-search-panel";
 import { getCurrentUser } from "@/features/users/api/users.api";
+import { FilesWorkspace } from "@/features/files/components/files-workspace";
+import { usePresenceSocket } from "@/features/presence/hooks/use-presence-socket";
+import { OnlineIndicator } from "@/features/presence/components/online-indicator";
 import type { CurrentUserData } from "@/features/users/types/user.type";
 import {
+  ACCESS_TOKEN_ROTATED_EVENT,
   clearAuthTokens,
   getAccessToken,
 } from "@/features/auth/utils/auth-storage";
+import { ChatWorkspace } from "@/features/chat/components/chat-workspace";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 type DashboardStatus = "loading" | "ready" | "error";
-type DashboardView = "teams" | "tasks" | "profile" | "people";
+type DashboardView = "teams" | "tasks" | "profile" | "people" | "chat" | "files";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -38,6 +45,11 @@ export default function DashboardPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<CurrentUserData | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const { isUserOnline } = usePresenceSocket({
+    accessToken: accessToken ?? "",
+    enabled: status === "ready" && !!accessToken,
+  });
 
   useEffect(() => {
     async function loadUser() {
@@ -62,6 +74,28 @@ export default function DashboardPage() {
 
     void loadUser();
   }, [router]);
+
+  // Pick up access-token rotations (api-client triggers a /auth/refresh on 401
+  // and broadcasts the new token via this event). Updating React state causes
+  // socket hooks to tear down and reconnect with the fresh token, and our
+  // Phase-1 room-rejoin logic restores chat subscriptions automatically.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleTokenRotated = (event: Event) => {
+      const customEvent = event as CustomEvent<{ accessToken: string }>;
+      const next = customEvent.detail?.accessToken;
+      if (next) setAccessToken(next);
+    };
+
+    window.addEventListener(ACCESS_TOKEN_ROTATED_EVENT, handleTokenRotated);
+    return () => {
+      window.removeEventListener(
+        ACCESS_TOKEN_ROTATED_EVENT,
+        handleTokenRotated,
+      );
+    };
+  }, []);
 
   function logout() {
     clearAuthTokens();
@@ -142,16 +176,36 @@ export default function DashboardPage() {
                 label="People"
                 onClick={() => setActiveView("people")}
               />
+              <NavButton
+                active={activeView === "chat"}
+                icon={<MessageSquare className="size-4" />}
+                label="Chat"
+                onClick={() => setActiveView("chat")}
+              />
+              <NavButton
+                active={activeView === "files"}
+                icon={<FileText className="size-4" />}
+                label="Files"
+                onClick={() => setActiveView("files")}
+              />
             </nav>
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 sm:mt-6 sm:block sm:p-3 lg:sticky lg:bottom-6 lg:mt-6">
             <div className="flex items-center gap-3">
-              <UserAvatar
-                avatarUrl={user.avatarUrl}
-                name={user.name}
-                size="sm"
-              />
+              <div className="relative">
+                <UserAvatar
+                  avatarUrl={user.avatarUrl}
+                  name={user.name}
+                  size="sm"
+                />
+                <div className="absolute -bottom-0.5 -right-0.5">
+                  <OnlineIndicator
+                    isOnline={isUserOnline(user.id)}
+                    size="sm"
+                  />
+                </div>
+              </div>
               <div className="min-w-0 max-[360px]:hidden sm:block">
                 <p className="truncate text-sm font-semibold text-slate-950">
                   {user.name}
@@ -183,6 +237,8 @@ export default function DashboardPage() {
                       ? "Execution"
                     : activeView === "profile"
                       ? "Account"
+                      : activeView === "chat"
+                      ? "Communication"
                       : "Network"}
                 </p>
                 <h2 className="mt-1 text-xl font-semibold text-slate-950 sm:text-2xl">
@@ -192,6 +248,8 @@ export default function DashboardPage() {
                       ? "Tasks"
                     : activeView === "profile"
                       ? "Profile"
+                    : activeView === "chat"
+                      ? "Messages"
                       : "People"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -201,7 +259,9 @@ export default function DashboardPage() {
                       ? "Track personal work, review team tasks, and update progress from one place."
                     : activeView === "profile"
                       ? "View and update your identity, contact, and public profile."
-                    : "Search users before inviting them into teams."}
+                    : activeView === "chat"
+                      ? "Direct messages, chat requests, and team conversations."
+                      : "Search users before inviting them into teams."}
                 </p>
               </div>
               <div className="flex w-full items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm sm:w-auto">
@@ -237,7 +297,7 @@ export default function DashboardPage() {
             </header>
 
             {activeView === "teams" ? (
-              <TeamsWorkspace accessToken={accessToken} currentUserId={user.id} />
+              <TeamsWorkspace accessToken={accessToken} currentUserId={user.id} isUserOnline={isUserOnline} />
             ) : null}
 
             {activeView === "tasks" ? (
@@ -298,6 +358,18 @@ export default function DashboardPage() {
                   </section>
                 </aside>
               </div>
+            ) : null}
+
+            {activeView === "chat" ? (
+              <ChatWorkspace
+                accessToken={accessToken}
+                currentUserId={user.id}
+                isUserOnline={isUserOnline}
+              />
+            ) : null}
+
+            {activeView === "files" ? (
+              <FilesWorkspace accessToken={accessToken} />
             ) : null}
 
             {activeView === "people" ? (

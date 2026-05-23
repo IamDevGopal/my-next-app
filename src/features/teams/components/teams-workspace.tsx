@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AvatarUploadControl } from "@/features/media/components/avatar-upload-control";
+import { TeamChatPanel } from "@/features/chat/components/team-chat-panel";
+import { OnlineIndicator } from "@/features/presence/components/online-indicator";
 import { TeamTasksPanel } from "@/features/tasks/components/tasks-workspace";
 import { searchUsers } from "@/features/users/api/users.api";
 import { UserAvatar } from "@/features/users/components/user-avatar";
@@ -62,6 +64,7 @@ import { RoleChangeDialog } from "./role-change-dialog";
 interface TeamsWorkspaceProps {
   accessToken: string;
   currentUserId: string;
+  isUserOnline?: (userId: string) => boolean;
 }
 
 type TeamLoadStatus = "idle" | "loading" | "ready" | "error";
@@ -78,7 +81,7 @@ const teamJoinPolicyOptions: TeamJoinPolicy[] = [
 ];
 
 
-export function TeamsWorkspace({ accessToken, currentUserId }: TeamsWorkspaceProps) {
+export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: TeamsWorkspaceProps) {
   const [status, setStatus] = useState<TeamLoadStatus>("idle");
   const [teams, setTeams] = useState<TeamSummaryData[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -379,11 +382,20 @@ export function TeamsWorkspace({ accessToken, currentUserId }: TeamsWorkspacePro
                 teamId={selectedTeam.id}
                 teamName={selectedTeam.name}
               />
+              <section className="rounded-lg border border-slate-200 p-3 sm:p-4">
+                <TeamChatPanel
+                  accessToken={accessToken}
+                  teamId={selectedTeam.id}
+                  teamName={selectedTeam.name}
+                  currentUserId={currentUserId}
+                />
+              </section>
               <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
                 <TeamMembersPanel
                   accessToken={accessToken}
                   canManage={canManageMembers}
                   members={selectedTeam.members}
+                  isUserOnline={isUserOnline}
                   onMembersChanged={(members) =>
                     setSelectedTeam((team) =>
                       team ? { ...team, members } : team,
@@ -1258,6 +1270,7 @@ interface TeamMembersPanelProps {
   accessToken: string;
   canManage: boolean;
   members: TeamMemberData[];
+  isUserOnline?: (userId: string) => boolean;
   onMembersChanged: (members: TeamMemberData[]) => void;
   teamId: string;
 }
@@ -1266,6 +1279,7 @@ function TeamMembersPanel({
   accessToken,
   canManage,
   members,
+  isUserOnline,
   onMembersChanged,
   teamId,
 }: TeamMembersPanelProps) {
@@ -1319,11 +1333,21 @@ function TeamMembersPanel({
             key={member.id}
           >
             <div className="flex min-w-0 items-center gap-3">
-              <UserAvatar
-                avatarUrl={member.user.avatarUrl}
-                name={member.user.name}
-                size="sm"
-              />
+              <div className="relative shrink-0">
+                <UserAvatar
+                  avatarUrl={member.user.avatarUrl}
+                  name={member.user.name}
+                  size="sm"
+                />
+                {isUserOnline ? (
+                  <div className="absolute -bottom-0.5 -right-0.5">
+                    <OnlineIndicator
+                      isOnline={isUserOnline(member.user.id)}
+                      size="sm"
+                    />
+                  </div>
+                ) : null}
+              </div>
               <div className="min-w-0">
                 <h4 className="truncate text-sm font-semibold text-slate-950">
                   {member.user.name}

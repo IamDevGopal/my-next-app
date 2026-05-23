@@ -15,6 +15,16 @@ export function login(payload: LoginFormValues) {
   });
 }
 
+export function refreshTokens(refreshToken: string) {
+  return apiRequest<LoginData>("/auth/refresh", {
+    method: "POST",
+    body: { refreshToken },
+    // Tell the api-client not to attempt its own 401 → refresh → retry on
+    // THIS request — otherwise a refresh failure would loop infinitely.
+    skipAuthRefresh: true,
+  });
+}
+
 export function forgotPassword(payload: ForgotPasswordFormValues) {
   return apiRequest<ForgotPasswordData>("/auth/forgot-password", {
     method: "POST",
