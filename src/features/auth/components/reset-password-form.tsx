@@ -23,7 +23,7 @@ export function ResetPasswordForm() {
   } = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
-      token: searchParams.get("token") ?? "",
+      token: searchParams?.get("token") ?? "",
       newPassword: "",
     },
   });

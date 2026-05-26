@@ -162,7 +162,7 @@ export function TeamChatPanel({
   }, [accessToken, teamId, currentUserId]);
 
   useEffect(() => {
-    setStatus("loading"); // eslint-disable-line react-hooks/set-state-in-effect
+    setStatus("loading");
 
     let cancelled = false;
 

@@ -16,7 +16,7 @@ const MISSING_TOKEN_MESSAGE =
 export function VerifyEmailFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const token = searchParams?.get("token") ?? null;
   // Derive the initial state from the presence of the token instead of
   // setting it inside a useEffect (which trips react-hooks/set-state-in-effect
   // and also causes an unnecessary extra render).
