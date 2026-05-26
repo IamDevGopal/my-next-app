@@ -1,3 +1,9 @@
+# Force LF line endings across all text files. Eliminates CRLF/LF phantom
+# diffs that confuse lint-staged on Windows (lint-staged stash-restore fails
+# when working tree CRLF disagrees with staged-blob LF).
+* text=auto eol=lf
+
+# Keep shell + husky hooks LF-only regardless of platform.
 *.sh text eol=lf
 .husky/* text eol=lf
 .husky/_/* text eol=lf
