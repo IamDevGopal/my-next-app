@@ -7,6 +7,7 @@ import {
   resetPasswordSchema,
   verifyEmailSchema,
 } from "../schemas/auth.schema";
+import type { UserRole } from "./role";
 
 export type LoginFormValues = z.infer<typeof loginSchema>;
 export type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -26,7 +27,7 @@ export interface LoginData {
     id: string;
     email: string;
     name: string;
-    role: "USER";
+    role: UserRole;
   };
 }
 
@@ -50,4 +51,18 @@ export interface RegisterData {
 
 export interface ResendVerificationData {
   verificationToken?: string;
+}
+
+export interface SessionData {
+  id: string;
+  deviceName: string | null;
+  userAgent: string | null;
+  ipAddress: string | null;
+  isCurrent: boolean;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface SessionsListData {
+  sessions: SessionData[];
 }

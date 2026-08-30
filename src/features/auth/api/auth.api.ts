@@ -10,6 +10,7 @@ import type {
   ResendVerificationData,
   ResendVerificationFormValues,
   ResetPasswordFormValues,
+  SessionsListData,
   VerifyEmailFormValues,
 } from "../types/auth.type";
 
@@ -69,6 +70,20 @@ export function resetPassword(payload: ResetPasswordFormValues) {
 export function me(accessToken: string) {
   return apiRequest<MeData>("/auth/me", {
     method: "GET",
+    accessToken,
+  });
+}
+
+export function listSessions(accessToken: string) {
+  return apiRequest<SessionsListData>("/auth/sessions", {
+    method: "GET",
+    accessToken,
+  });
+}
+
+export function revokeSession(accessToken: string, sessionId: string) {
+  return apiRequest<Record<string, never>>(`/auth/sessions/${sessionId}`, {
+    method: "DELETE",
     accessToken,
   });
 }
