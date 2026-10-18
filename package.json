@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "lint:check": "eslint",
-    "prepare": "husky",
+    "prepare": "node .husky/install.mjs",
+    "hooks:install": "node .husky/install.mjs",
+    "hooks:check": "node .husky/commit-message.cjs doctor",
+    "test:commits": "node --test .husky/commit-message.test.cjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit"

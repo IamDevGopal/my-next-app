@@ -9,6 +9,13 @@ const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
 
 const eslintConfig = defineConfig([
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    files: [".husky/**/*.cjs", "commitlint.config.cjs"],
+    rules: {
+      // Git tooling and commitlint deliberately use CommonJS in both repositories.
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     ".next/**",

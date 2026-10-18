@@ -7,6 +7,6 @@
  *
  * Admin-platform roles (SUPER_ADMIN / MANAGER) will NEVER appear in this
  * type — they belong to a separate identity domain. See
- * docs/Memory/rbac_identity_split.md.
+ * docs/architecture/access-control.md in the parent TaskFlow repository.
  */
 export type UserRole = "USER";
