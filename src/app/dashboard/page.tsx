@@ -28,9 +28,10 @@ import { usePresenceSocket } from "@/features/presence/hooks/use-presence-socket
 import { OnlineIndicator } from "@/features/presence/components/online-indicator";
 import type { CurrentUserData } from "@/features/users/types/user.type";
 import {
-  ACCESS_TOKEN_ROTATED_EVENT,
   clearAuthTokens,
   getAccessToken,
+  getAuthSessionVersion,
+  subscribeToAuthTokenChanges,
 } from "@/features/auth/utils/auth-storage";
 import { ChatWorkspace } from "@/features/chat/components/chat-workspace";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
@@ -55,6 +56,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadUser() {
       const token = getAccessToken();
+      const sessionVersion = getAuthSessionVersion();
 
       if (!token) {
         router.replace("/login");
@@ -63,11 +65,12 @@ export default function DashboardPage() {
 
       try {
         const response = await getCurrentUser(token);
-        setAccessToken(token);
+        if (getAuthSessionVersion() !== sessionVersion) return;
+        setAccessToken(getAccessToken());
         setUser(response.data.user);
         setStatus("ready");
       } catch (error) {
-        clearAuthTokens();
+        if (getAuthSessionVersion() !== sessionVersion) return;
         setMessage(getErrorMessage(error));
         setStatus("error");
       }
@@ -76,27 +79,16 @@ export default function DashboardPage() {
     void loadUser();
   }, [router]);
 
-  // Pick up access-token rotations (api-client triggers a /auth/refresh on 401
-  // and broadcasts the new token via this event). Updating React state causes
-  // socket hooks to tear down and reconnect with the fresh token, and our
-  // Phase-1 room-rejoin logic restores chat subscriptions automatically.
+  /**
+   * Same-tab refreshes and other tabs update one shared credential pair.
+   * Keep socket consumers synchronized without restoring a captured token.
+   */
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const handleTokenRotated = (event: Event) => {
-      const customEvent = event as CustomEvent<{ accessToken: string }>;
-      const next = customEvent.detail?.accessToken;
-      if (next) setAccessToken(next);
-    };
-
-    window.addEventListener(ACCESS_TOKEN_ROTATED_EVENT, handleTokenRotated);
-    return () => {
-      window.removeEventListener(
-        ACCESS_TOKEN_ROTATED_EVENT,
-        handleTokenRotated,
-      );
-    };
-  }, []);
+    return subscribeToAuthTokenChanges((token) => {
+      setAccessToken(token);
+      if (!token) router.replace("/login");
+    });
+  }, [router]);
 
   function logout() {
     clearAuthTokens();

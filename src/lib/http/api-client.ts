@@ -1,9 +1,6 @@
 import { env } from "@/config/env";
-import {
-  clearAuthTokens,
-  getRefreshToken,
-  storeAuthTokens,
-} from "@/features/auth/utils/auth-storage";
+import { refreshAccessToken } from "@/features/auth/api/refresh-session";
+import { getAuthSessionVersion } from "@/features/auth/utils/auth-storage";
 import { ApiError } from "./api-error";
 import type { ApiResponse, ApiSuccessResponse } from "./api-response.type";
 
@@ -62,66 +59,26 @@ export function subscribeToApiActivity(
   };
 }
 
-// ── Token refresh coordination ──────────────────────────────────────────
-// Multiple in-flight 401s should NOT trigger N parallel refresh calls. We
-// share a single Promise so all callers await the same refresh attempt.
-
-let activeRefresh: Promise<string | null> | null = null;
-
-async function refreshAccessToken(): Promise<string | null> {
-  if (activeRefresh) return activeRefresh;
-
-  activeRefresh = (async () => {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return null;
-
-    try {
-      const response = await fetch(
-        `${env.NEXT_PUBLIC_API_BASE_URL}/auth/refresh`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ refreshToken }),
-        },
-      );
-
-      if (!response.ok) return null;
-
-      const payload = (await response.json()) as ApiResponse<{
-        accessToken: string;
-        refreshToken: string;
-      }>;
-
-      if (!payload.success) return null;
-
-      storeAuthTokens({
-        accessToken: payload.data.accessToken,
-        refreshToken: payload.data.refreshToken,
-      });
-
-      return payload.data.accessToken;
-    } catch {
-      return null;
-    } finally {
-      activeRefresh = null;
-    }
-  })();
-
-  return activeRefresh;
-}
-
 export async function apiRequest<TData>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<ApiSuccessResponse<TData>> {
-  return executeRequest<TData>(path, options, /*alreadyRetried*/ false);
+  const sessionVersion =
+    typeof window !== "undefined" && options.accessToken
+      ? getAuthSessionVersion()
+      : undefined;
+  return executeRequest<TData>(path, options, false, sessionVersion);
 }
 
 async function executeRequest<TData>(
   path: string,
   options: ApiRequestOptions,
   alreadyRetried: boolean,
+  sessionVersion?: string,
 ): Promise<ApiSuccessResponse<TData>> {
+  if (sessionVersion !== undefined && getAuthSessionVersion() !== sessionVersion) {
+    throw new Error("The signed-in account changed. Please retry your action.");
+  }
   const isFormData = options.body instanceof FormData;
   const body: BodyInit | undefined = isFormData
     ? (options.body as FormData)
@@ -150,30 +107,32 @@ async function executeRequest<TData>(
     }
 
     const payload = (await response.json()) as ApiResponse<TData>;
+    if (sessionVersion !== undefined && getAuthSessionVersion() !== sessionVersion) {
+      throw new Error("The signed-in account changed. Please retry your action.");
+    }
 
     if (!payload.success) {
-      // 401 from any authenticated endpoint → try a single refresh and retry.
-      // We only attempt this when the caller actually passed an accessToken
-      // (so anonymous requests don't trigger refresh) and not for the
-      // /auth/refresh call itself (would infinite loop on bad refresh token).
+      /**
+       * The auth adapter owns refresh coordination and terminal cleanup.
+       * Transient errors propagate without deleting shared credentials.
+       */
       const status = payload.meta.statusCode;
       if (
         status === 401 &&
         options.accessToken &&
+        sessionVersion !== undefined &&
         !options.skipAuthRefresh &&
         !alreadyRetried
       ) {
-        const fresh = await refreshAccessToken();
+        const fresh = await refreshAccessToken(options.accessToken, sessionVersion);
         if (fresh) {
           return executeRequest<TData>(
             path,
             { ...options, accessToken: fresh },
             true,
+            sessionVersion,
           );
         }
-        // Refresh failed → cooperate with the auth shell so it can redirect
-        // to login on the next render tick.
-        clearAuthTokens();
       }
       throw new ApiError(payload);
     }
