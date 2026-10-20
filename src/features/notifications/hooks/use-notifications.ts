@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { env } from "@/config/env";
+import { bindAuthenticatedSocket } from "@/features/auth/realtime/bind-authenticated-socket";
 import {
   listNotifications,
   markAllNotificationsRead,
@@ -138,9 +139,11 @@ export function useNotifications({
       },
     );
 
+    const unbindAuth = bindAuthenticatedSocket(socket, accessToken);
     socketRef.current = socket;
 
     return () => {
+      unbindAuth();
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;

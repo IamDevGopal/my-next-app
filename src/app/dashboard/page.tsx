@@ -28,11 +28,11 @@ import { usePresenceSocket } from "@/features/presence/hooks/use-presence-socket
 import { OnlineIndicator } from "@/features/presence/components/online-indicator";
 import type { CurrentUserData } from "@/features/users/types/user.type";
 import {
-  clearAuthTokens,
   getAccessToken,
   getAuthSessionVersion,
   subscribeToAuthTokenChanges,
 } from "@/features/auth/utils/auth-storage";
+import { signOutCurrentSession } from "@/features/auth/services/session-actions";
 import { ChatWorkspace } from "@/features/chat/components/chat-workspace";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { getErrorMessage } from "@/lib/http/get-error-message";
@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<CurrentUserData | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const { isUserOnline } = usePresenceSocket({
     accessToken: accessToken ?? "",
@@ -90,9 +91,15 @@ export default function DashboardPage() {
     });
   }, [router]);
 
-  function logout() {
-    clearAuthTokens();
-    router.replace("/login");
+  async function logout() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      const result = await signOutCurrentSession();
+      if (result.sessionCleared) router.replace("/login");
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   if (status === "loading") {
@@ -210,11 +217,12 @@ export default function DashboardPage() {
             </div>
             <button
               className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 sm:mt-3 sm:h-10 sm:w-full"
-              onClick={logout}
+              onClick={() => void logout()}
+              disabled={signingOut}
               type="button"
             >
               <LogOut className="size-4" />
-              <span className="max-[360px]:sr-only">Logout</span>
+              <span className="max-[360px]:sr-only">{signingOut ? "Signing out…" : "Logout"}</span>
             </button>
           </div>
         </aside>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { env } from "@/config/env";
+import { bindAuthenticatedSocket } from "@/features/auth/realtime/bind-authenticated-socket";
 
 export type PresenceStatus = "ONLINE" | "AWAY" | "BUSY" | "OFFLINE";
 
@@ -43,6 +44,7 @@ export function usePresenceSocket({
       reconnectionDelayMax: 5000,
     });
 
+    const unbindAuth = bindAuthenticatedSocket(socket, accessToken);
     socket.on("connect", () => {
       setConnected(true);
     });
@@ -74,6 +76,7 @@ export function usePresenceSocket({
     socketRef.current = socket;
 
     return () => {
+      unbindAuth();
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;

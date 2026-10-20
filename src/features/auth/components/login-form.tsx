@@ -2,7 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { SIGN_OUT_NOTICE_EVENT, takeSignOutNotice } from "../services/session-actions";
 import { useForm } from "react-hook-form";
 import { login } from "../api/auth.api";
 import { loginSchema } from "../schemas/auth.schema";
@@ -17,6 +18,15 @@ import { getErrorMessage } from "@/lib/http/get-error-message";
 export function LoginForm() {
   const router = useRouter();
   const [formMessage, setFormMessage] = useState<string | null>(null);
+  useEffect(() => {
+    const showNotice = () => {
+      const notice = takeSignOutNotice();
+      if (notice) setFormMessage(notice);
+    };
+    showNotice();
+    window.addEventListener(SIGN_OUT_NOTICE_EVENT, showNotice);
+    return () => window.removeEventListener(SIGN_OUT_NOTICE_EVENT, showNotice);
+  }, []);
   const {
     register,
     handleSubmit,

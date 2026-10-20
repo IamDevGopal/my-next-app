@@ -7,6 +7,7 @@ For this TaskFlow workspace, read and follow the parent `../AGENTS.md` as well. 
 - Place components, API adapters, helpers, schemas, types, and tests by their actual responsibility and feature ownership. Shared folders are not default destinations merely because multiple callers exist; follow existing feature boundaries.
 - Added/revised code comments must use multiline block format. Remove or correct stale/redundant comments only in the selected code being changed.
 - Keep tests and fixtures related to the selected behavior and correctly located. Do not run unrelated suites or repeat check chains without authorization.
+- Keep frontend test files in the repository's root `tests/` directory, grouped by feature; do not colocate tests with application code in `src/`.
 - Explain unfamiliar terms in simple Hinglish and use user-action/API chains for findings. Keep completion reports brief and distinguish actual evidence from pending verification.
 
 <!-- BEGIN:nextjs-agent-rules -->

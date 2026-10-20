@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
 import { env } from "@/config/env";
+import { bindAuthenticatedSocket } from "@/features/auth/realtime/bind-authenticated-socket";
 import type { MessageData, TeamChatMessageData } from "../types/chat.type";
 
 // ── Types ──
@@ -86,6 +87,7 @@ export function useChatSocket({
       reconnectionDelayMax: 5000,
     });
 
+    const unbindAuth = bindAuthenticatedSocket(socket, accessToken);
     const rejoinActiveRooms = () => {
       activeRoomsRef.current.forEach((room) => {
         socket.emit("chat:join", { chatId: room.chatId, type: room.type });
@@ -141,6 +143,7 @@ export function useChatSocket({
     socketRef.current = socket;
 
     return () => {
+      unbindAuth();
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;

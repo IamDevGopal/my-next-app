@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActiveSessionsPanel } from "@/features/auth/components/active-sessions-panel";
+import { SecurityActionsPanel } from "@/features/auth/components/security-actions-panel";
 
 export default function SecuritySettingsPage() {
   return (
@@ -16,7 +17,8 @@ export default function SecuritySettingsPage() {
       <p className="mt-2 text-sm leading-6 text-slate-600">
         Review and manage where your account is signed in.
       </p>
-      <div className="mt-8">
+      <div className="mt-8 space-y-8">
+        <SecurityActionsPanel />
         <ActiveSessionsPanel />
       </div>
     </div>
