@@ -79,10 +79,12 @@ export function listSessions(accessToken: string) {
 }
 
 export function revokeSession(accessToken: string, sessionId: string) {
-  return apiRequest<Record<string, never>>(`/auth/sessions/${sessionId}`, {
-    method: "DELETE",
+  return securityRequest(
+    `/auth/sessions/${sessionId}`,
     accessToken,
-  });
+    undefined,
+    "DELETE",
+  );
 }
 
 const SECURITY_REQUEST_TIMEOUT_MS = 20_000;
@@ -117,6 +119,7 @@ async function securityRequest(
   path: string,
   accessToken: string,
   body: unknown,
+  method: "POST" | "DELETE" = "POST",
 ) {
   const version = getAuthSessionVersion();
   if (getAccessToken() !== accessToken) {
@@ -130,7 +133,7 @@ async function securityRequest(
   try {
     for (let attempt = 0; attempt < MAX_SECURITY_REQUEST_ATTEMPTS; attempt++) {
       const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}${path}`, {
-        method: "POST",
+        method,
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${accessToken}`,

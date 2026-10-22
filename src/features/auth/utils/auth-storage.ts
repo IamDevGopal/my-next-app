@@ -15,6 +15,13 @@ const SESSION_FLAG_COOKIE = "tf.session";
 
 export const ACCESS_TOKEN_ROTATED_EVENT = "taskflow:access-token-rotated";
 
+function createSessionVersion(): string {
+  return Array.from(
+    window.crypto.getRandomValues(new Uint8Array(16)),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
 function setSessionFlagCookie(maxAgeDays: number): void {
   if (typeof document === "undefined") return;
   const maxAge = maxAgeDays * 24 * 60 * 60;
@@ -42,11 +49,7 @@ export function storeAuthTokens(
     if (getAuthSessionVersion() !== options.expectedSessionVersion)
       return false;
   } else {
-    const version = Array.from(
-      window.crypto.getRandomValues(new Uint8Array(16)),
-      (byte) => byte.toString(16).padStart(2, "0"),
-    ).join("");
-    localStorage.setItem(SESSION_VERSION_KEY, version);
+    localStorage.setItem(SESSION_VERSION_KEY, createSessionVersion());
   }
   localStorage.setItem(ACCESS_TOKEN_KEY, params.accessToken);
   localStorage.setItem(REFRESH_TOKEN_KEY, params.refreshToken);
@@ -90,9 +93,28 @@ export function getRefreshToken(): string | null {
 export function clearAuthTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(SESSION_VERSION_KEY);
+  /**
+   * Keep a fresh non-credential generation even when signed out. Otherwise
+   * an anonymous request could observe legacy -> login -> logout -> legacy
+   * and mistake the final state for its original browser identity.
+   */
+  localStorage.setItem(SESSION_VERSION_KEY, createSessionVersion());
   clearSessionFlagCookie();
   notifyTokenChange(null);
+}
+
+/**
+ * A late failure from an old request cannot erase a newer browser login
+ * or a successor access token that another request has already stored.
+ */
+export function clearAuthTokensIfCurrent(
+  sessionVersion: string,
+  accessToken?: string,
+): boolean {
+  if (getAuthSessionVersion() !== sessionVersion) return false;
+  if (accessToken !== undefined && getAccessToken() !== accessToken) return false;
+  clearAuthTokens();
+  return true;
 }
 
 export function subscribeToAuthTokenChanges(

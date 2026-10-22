@@ -1,13 +1,18 @@
 import { env } from "@/config/env";
 import { refreshAccessToken } from "@/features/auth/api/refresh-session";
-import { getAuthSessionVersion } from "@/features/auth/utils/auth-storage";
+import {
+  clearAuthTokensIfCurrent,
+  getAuthSessionVersion,
+} from "@/features/auth/utils/auth-storage";
 import { ApiError } from "./api-error";
 import type { ApiResponse, ApiSuccessResponse } from "./api-response.type";
 
 interface ApiRequestOptions extends Omit<RequestInit, "body"> {
   body?: FormData | unknown;
   accessToken?: string;
-  /** Skip the built-in 401 → refresh → retry flow (use on /auth/refresh itself). */
+  /**
+   * Refresh endpoints must not recursively start another refresh.
+   */
   skipAuthRefresh?: boolean;
 }
 
@@ -116,9 +121,10 @@ async function executeRequest<TData>(
        * The auth adapter owns refresh coordination and terminal cleanup.
        * Transient errors propagate without deleting shared credentials.
        */
-      const status = payload.meta.statusCode;
+      const status = response.status;
       if (
         status === 401 &&
+        payload.error.code === "AUTH_TOKEN_EXPIRED" &&
         options.accessToken &&
         sessionVersion !== undefined &&
         !options.skipAuthRefresh &&
@@ -133,6 +139,16 @@ async function executeRequest<TData>(
             sessionVersion,
           );
         }
+      }
+      if (
+        status === 401 &&
+        sessionVersion !== undefined &&
+        options.accessToken &&
+        (payload.error.code === "AUTH_TOKEN_INVALID" ||
+          payload.error.code === "AUTH_REFRESH_TOKEN_REVOKED" ||
+          (payload.error.code === "AUTH_TOKEN_EXPIRED" && alreadyRetried))
+      ) {
+        clearAuthTokensIfCurrent(sessionVersion, options.accessToken);
       }
       throw new ApiError(payload);
     }

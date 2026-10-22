@@ -3,12 +3,16 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { verifyEmail } from "../api/auth.api";
-import { storeAuthTokens } from "../utils/auth-storage";
+import {
+  getAccessToken,
+  getAuthSessionVersion,
+  storeAuthTokens,
+} from "../utils/auth-storage";
 import { AuthFormLink } from "./auth-form-link";
 import { FormMessage } from "./form-message";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
-type Status = "idle" | "verifying" | "success" | "error";
+type Status = "confirmation" | "verifying" | "success" | "error";
 
 const MISSING_TOKEN_MESSAGE =
   "No verification token in the link. Open the email link again.";
@@ -17,24 +21,52 @@ export function VerifyEmailFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams?.get("token") ?? null;
-  // Derive the initial state from the presence of the token instead of
-  // setting it inside a useEffect (which trips react-hooks/set-state-in-effect
-  // and also causes an unnecessary extra render).
   const [status, setStatus] = useState<Status>(token ? "verifying" : "error");
+  const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState<string | null>(
     token ? null : MISSING_TOKEN_MESSAGE,
   );
-  // Guard against the effect firing twice in React 18 strict mode (dev) —
-  // verify-email is single-use, so the second call would always fail.
-  const startedRef = useRef(false);
+  /**
+   * Strict Mode subscriptions share one single-use request. Each effect
+   * still owns its UI cleanup and may not replace a later browser login.
+   */
+  const startedRef = useRef<{
+    token: string;
+    version: string;
+    accessToken: string | null;
+    promise: ReturnType<typeof verifyEmail>;
+  } | null>(null);
 
   useEffect(() => {
     if (!token) return;
-    if (startedRef.current) return;
-    startedRef.current = true;
-
-    verifyEmail({ token })
+    if (!startedRef.current || startedRef.current.token !== token) {
+      if (getAccessToken() && !confirmed) {
+        setStatus("confirmation");
+        return;
+      }
+      startedRef.current = {
+        token,
+        version: getAuthSessionVersion(),
+        accessToken: getAccessToken(),
+        promise: verifyEmail({ token }),
+      };
+    }
+    const request = startedRef.current;
+    let active = true;
+    setStatus("verifying");
+    request.promise
       .then((response) => {
+        if (!active) return;
+        if (
+          getAuthSessionVersion() !== request.version ||
+          getAccessToken() !== request.accessToken
+        ) {
+          setStatus("success");
+          setMessage(
+            "Email verified. Your browser sign-in changed while verification was pending, so it has been preserved. Sign in separately to use the verified account.",
+          );
+          return;
+        }
         storeAuthTokens({
           accessToken: response.data.accessToken,
           refreshToken: response.data.refreshToken,
@@ -44,17 +76,38 @@ export function VerifyEmailFlow() {
           response.message ??
             `Email verified. Welcome, ${response.data.user.name}.`,
         );
-        // Brief pause so the user sees the success state before we navigate.
-        const timeout = setTimeout(() => router.replace("/dashboard"), 1200);
-        return () => clearTimeout(timeout);
+        router.replace("/dashboard");
       })
       .catch((error) => {
+        if (!active) return;
         setStatus("error");
         setMessage(getErrorMessage(error));
       });
-  }, [token, router]);
+    return () => {
+      active = false;
+    };
+  }, [token, router, confirmed]);
 
-  if (status === "verifying" || status === "idle") {
+  if (status === "confirmation") {
+    return (
+      <div className="space-y-4">
+        <FormMessage tone="neutral">
+          You are already signed in. Verifying this link will replace this
+          browser&apos;s login with the account named in the verification email.
+        </FormMessage>
+        <button
+          type="button"
+          className="rounded-md bg-emerald-700 px-4 py-2 text-white"
+          onClick={() => setConfirmed(true)}
+        >
+          Verify and sign in to that account
+        </button>
+        <AuthFormLink href="/dashboard">Keep my current sign-in</AuthFormLink>
+      </div>
+    );
+  }
+
+  if (status === "verifying") {
     return (
       <FormMessage tone="neutral">
         Verifying your email&hellip; this should only take a moment.
@@ -66,9 +119,8 @@ export function VerifyEmailFlow() {
     return (
       <div className="space-y-4">
         <FormMessage tone="success">{message}</FormMessage>
-        <p className="text-sm text-slate-600">
-          Redirecting you to your dashboard&hellip;
-        </p>
+        <AuthFormLink href="/dashboard">Open dashboard</AuthFormLink>
+        <AuthFormLink href="/login">Sign in</AuthFormLink>
       </div>
     );
   }

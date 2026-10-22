@@ -16,7 +16,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ProfileForm } from "@/features/users/components/profile-form";
 import { TeamsWorkspace } from "@/features/teams/components/teams-workspace";
 import { TasksWorkspace } from "@/features/tasks/components/tasks-workspace";
@@ -29,6 +29,7 @@ import { OnlineIndicator } from "@/features/presence/components/online-indicator
 import type { CurrentUserData } from "@/features/users/types/user.type";
 import {
   getAccessToken,
+  clearAuthTokensIfCurrent,
   getAuthSessionVersion,
   subscribeToAuthTokenChanges,
 } from "@/features/auth/utils/auth-storage";
@@ -48,6 +49,8 @@ export default function DashboardPage() {
   const [user, setUser] = useState<CurrentUserData | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const loadedSessionVersion = useRef<string | null>(null);
 
   const { isUserOnline } = usePresenceSocket({
     accessToken: accessToken ?? "",
@@ -55,30 +58,38 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
+    let cancelled = false;
     async function loadUser() {
       const token = getAccessToken();
       const sessionVersion = getAuthSessionVersion();
+      loadedSessionVersion.current = sessionVersion;
+      setStatus("loading");
+      setMessage(null);
 
       if (!token) {
+        clearAuthTokensIfCurrent(sessionVersion);
         router.replace("/login");
         return;
       }
 
       try {
         const response = await getCurrentUser(token);
-        if (getAuthSessionVersion() !== sessionVersion) return;
+        if (cancelled || getAuthSessionVersion() !== sessionVersion) return;
         setAccessToken(getAccessToken());
         setUser(response.data.user);
         setStatus("ready");
       } catch (error) {
-        if (getAuthSessionVersion() !== sessionVersion) return;
+        if (cancelled || getAuthSessionVersion() !== sessionVersion) return;
         setMessage(getErrorMessage(error));
         setStatus("error");
       }
     }
 
     void loadUser();
-  }, [router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [router, loadAttempt]);
 
   /**
    * Same-tab refreshes and other tabs update one shared credential pair.
@@ -87,7 +98,14 @@ export default function DashboardPage() {
   useEffect(() => {
     return subscribeToAuthTokenChanges((token) => {
       setAccessToken(token);
-      if (!token) router.replace("/login");
+      if (!token) {
+        setUser(null);
+        router.replace("/login");
+      } else if (loadedSessionVersion.current !== getAuthSessionVersion()) {
+        setUser(null);
+        setStatus("loading");
+        setLoadAttempt((attempt) => attempt + 1);
+      }
     });
   }, [router]);
 
@@ -121,17 +139,18 @@ export default function DashboardPage() {
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <section className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-slate-950">
-            Session expired
+            Unable to load your workspace
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {message ?? "Please sign in again."}
+            {message ??
+              "Please retry. Your session has not been confirmed as expired."}
           </p>
           <button
             className="mt-5 h-11 w-full rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
-            onClick={() => router.replace("/login")}
+            onClick={() => setLoadAttempt((attempt) => attempt + 1)}
             type="button"
           >
-            Back to login
+            Try again
           </button>
         </section>
       </main>

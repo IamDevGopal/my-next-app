@@ -1,14 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listSessions, revokeSession } from "../api/auth.api";
-import { getAccessToken } from "../utils/auth-storage";
+import { useRouter } from "next/navigation";
+import { listSessions } from "../api/auth.api";
+import { revokeDeviceSession } from "../services/session-actions";
+import {
+  clearAuthTokensIfCurrent,
+  getAccessToken,
+  getAuthSessionVersion,
+  subscribeToAuthTokenChanges,
+} from "../utils/auth-storage";
 import type { SessionData } from "../types/auth.type";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 type Status = "loading" | "ready" | "error";
 
 export function ActiveSessionsPanel() {
+  const router = useRouter();
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -16,7 +24,10 @@ export function ActiveSessionsPanel() {
 
   const load = useCallback(async () => {
     const token = getAccessToken();
+    const version = getAuthSessionVersion();
     if (!token) {
+      clearAuthTokensIfCurrent(version);
+      router.replace("/login");
       setStatus("error");
       setErrorMessage("You are not signed in.");
       return;
@@ -26,17 +37,33 @@ export function ActiveSessionsPanel() {
     setErrorMessage(null);
     try {
       const response = await listSessions(token);
+      if (getAuthSessionVersion() !== version) return;
       setSessions(response.data.sessions);
       setStatus("ready");
     } catch (error) {
+      if (getAuthSessionVersion() !== version) return;
       setErrorMessage(getErrorMessage(error));
       setStatus("error");
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
+    let version = getAuthSessionVersion();
     void load();
-  }, [load]);
+    return subscribeToAuthTokenChanges((token) => {
+      if (!token) {
+        setSessions([]);
+        router.replace("/login");
+        return;
+      }
+      const current = getAuthSessionVersion();
+      if (current !== version) {
+        version = current;
+        setSessions([]);
+        void load();
+      }
+    });
+  }, [load, router]);
 
   async function handleRevoke(session: SessionData) {
     const confirmMessage = session.isCurrent
@@ -44,20 +71,19 @@ export function ActiveSessionsPanel() {
       : `Revoke "${session.deviceName ?? "Unknown device"}"?`;
     if (!window.confirm(confirmMessage)) return;
 
-    const token = getAccessToken();
-    if (!token) return;
+    const version = getAuthSessionVersion();
 
     setRevokingId(session.id);
     try {
-      await revokeSession(token, session.id);
-      if (session.isCurrent) {
-        // Current session revoked → next request will 401, api-client will
-        // clear tokens. Force redirect now for instant feedback.
-        window.location.href = "/login";
+      const result = await revokeDeviceSession(session.id, session.isCurrent);
+      if (result.sessionCleared) {
+        router.replace("/login");
         return;
       }
+      if (getAuthSessionVersion() !== version) return;
       await load();
     } catch (error) {
+      if (getAuthSessionVersion() !== version) return;
       setErrorMessage(getErrorMessage(error));
     } finally {
       setRevokingId(null);

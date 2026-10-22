@@ -1,4 +1,4 @@
-import { changePassword, logout, logoutAll } from "../api/auth.api";
+import { changePassword, logout, logoutAll, revokeSession } from "../api/auth.api";
 import {
   clearAuthTokens,
   getAccessToken,
@@ -70,6 +70,18 @@ export async function signOutAllSessions(currentPassword: string) {
   await logoutAll(access, currentPassword);
   return {
     sessionCleared: finishLocalSignOut(version, "All devices have been signed out."),
+  };
+}
+
+export async function revokeDeviceSession(sessionId: string, isCurrent: boolean) {
+  const version = getAuthSessionVersion();
+  const access = getAccessToken();
+  if (!access) throw new Error("Please sign in again.");
+  await revokeSession(access, sessionId);
+  return {
+    sessionCleared:
+      isCurrent &&
+      finishLocalSignOut(version, "This device has been signed out."),
   };
 }
 

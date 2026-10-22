@@ -48,7 +48,8 @@ function browser(fetch) {
   let id = 0;
   window.setTimeout = (callback) => { timers.set(++id, callback); return id; };
   window.clearTimeout = (timer) => timers.delete(timer);
-  const context = vm.createContext({ window, localStorage: storage(values), sessionStorage: storage(notices), document: { cookie: "" }, navigator: {}, Event, CustomEvent, Uint8Array, FormData, AbortController, fetch });
+  const document = { cookie: "" };
+  const context = vm.createContext({ window, localStorage: storage(values), sessionStorage: storage(notices), document, navigator: {}, Event, CustomEvent, Uint8Array, FormData, AbortController, fetch });
   const modules = new Map();
   function load(relative) {
     const filename = resolve(root, relative);
@@ -69,7 +70,7 @@ function browser(fetch) {
   const authStorage = load("features/auth/utils/auth-storage.ts");
   authStorage.storeAuthTokens(original);
   return {
-    load, window, timers, storage: authStorage,
+    load, window, timers, document, storage: authStorage,
     api: load("features/auth/api/auth.api.ts"),
     actions: load("features/auth/services/session-actions.ts"),
     bind: load("features/auth/realtime/bind-authenticated-socket.ts").bindAuthenticatedSocket,
@@ -111,6 +112,48 @@ test("offline sign out exits locally with explicit unconfirmed-server notice", a
   assert.equal(result.serverConfirmed, false);
   assert.equal(result.sessionCleared, true);
   assert.match(tab.actions.takeSignOutNotice(), /could not be confirmed/);
+});
+
+test("current-device revoke uses DELETE then clears credentials and session hint", async () => {
+  let request;
+  const tab = browser(async (url, options) => { request = { url, options }; return response(); });
+  const result = await tab.actions.revokeDeviceSession("current-device", true);
+  assert.equal(request.options.method, "DELETE");
+  assert.ok(request.url.endsWith("/auth/sessions/current-device"));
+  assert.equal(request.options.body, undefined);
+  assert.equal(result.sessionCleared, true);
+  assert.equal(tab.storage.getAccessToken(), null);
+  assert.equal(tab.storage.getRefreshToken(), null);
+  assert.match(tab.document.cookie, /tf\.session=;.*Max-Age=0/);
+  assert.match(tab.actions.takeSignOutNotice(), /This device/);
+});
+
+test("other-device revoke preserves the current browser login", async () => {
+  const tab = browser(async () => response());
+  assert.equal((await tab.actions.revokeDeviceSession("other-device", false)).sessionCleared, false);
+  assert.equal(tab.storage.getAccessToken(), original.accessToken);
+});
+
+test("current-device revoke reads success after an early socket logout", async () => {
+  let tab;
+  tab = browser(async () => { tab.storage.clearAuthTokens(); return response(); });
+  assert.equal((await tab.actions.revokeDeviceSession("current-device", true)).sessionCleared, true);
+});
+
+test("late device-revoke response preserves a newer account login", async () => {
+  const pending = deferred();
+  const tab = browser(async () => pending.promise);
+  const action = tab.actions.revokeDeviceSession("current-device", true);
+  tab.storage.storeAuthTokens(newerLogin);
+  pending.resolve(response());
+  assert.equal((await action).sessionCleared, false);
+  assert.equal(tab.storage.getAccessToken(), newerLogin.accessToken);
+});
+
+test("failed device revoke preserves credentials and its structured error", async () => {
+  const tab = browser(async () => response(503, "AUTH_SESSION_CHECK_UNAVAILABLE"));
+  await assert.rejects(tab.actions.revokeDeviceSession("current-device", true), (error) => error.code === "AUTH_SESSION_CHECK_UNAVAILABLE");
+  assert.equal(tab.storage.getAccessToken(), original.accessToken);
 });
 
 test("socket revocation before HTTP success does not misreport logout-all as failure", async () => {
