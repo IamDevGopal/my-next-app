@@ -4,25 +4,27 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { register as registerUser } from "../api/auth.api";
 import { registerSchema } from "../schemas/auth.schema";
 import type { RegisterFormValues } from "../types/auth.type";
 import { AuthFormLink } from "./auth-form-link";
 import { FormField } from "./form-field";
-import { FormMessage } from "./form-message";
+import { FormMessage, type FormFeedback } from "./form-message";
+import { PasswordGuidance } from "./password-guidance";
 import { SubmitButton } from "./submit-button";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 export function RegisterForm() {
   const router = useRouter();
-  const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<FormFeedback | null>(null);
   const [devToken, setDevToken] = useState<string | null>(null);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const {
     register: registerField,
+    control,
     handleSubmit,
-    formState: { errors, isSubmitting, isSubmitSuccessful },
+    formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -31,37 +33,44 @@ export function RegisterForm() {
       password: "",
     },
   });
+  const password = useWatch({ control, name: "password", defaultValue: "" });
 
   async function onSubmit(values: RegisterFormValues) {
-    setFormMessage(null);
+    setFeedback(null);
     setDevToken(null);
     try {
       const response = await registerUser(values);
       setSubmittedEmail(values.email);
-      setFormMessage(
-        response.message ??
+      setFeedback({
+        message:
+          response.message ??
           "Registration successful. Check your email to verify your account.",
-      );
-      // Dev convenience: backend leaks the verification token in non-production
-      // so we can complete the flow without a real SMTP server.
+        tone: "success",
+      });
+      /**
+       * The API includes this convenience only in explicit development
+       * mode, never in test, staging or production.
+       */
       setDevToken(response.data.verificationToken ?? null);
     } catch (error) {
-      setFormMessage(getErrorMessage(error));
+      setFeedback({ message: getErrorMessage(error), tone: "danger" });
     }
   }
 
-  // After a successful submit, hide the form and show the "check your email"
-  // panel. Avoids accidentally re-submitting and re-triggering rate limits.
-  if (isSubmitSuccessful && submittedEmail) {
+  /**
+   * Keep successful registration on the recovery panel to avoid duplicate
+   * account submissions while durable email delivery is pending.
+   */
+  if (submittedEmail) {
     return (
       <div className="space-y-4">
         <FormMessage tone="success">
-          {formMessage ?? "Registration successful."}
+          {feedback?.message ?? "Registration successful."}
         </FormMessage>
         <p className="text-sm leading-6 text-slate-600">
-          We just sent a verification link to{" "}
+          Your verification email is queued for{" "}
           <span className="font-semibold text-slate-950">{submittedEmail}</span>
-          . Open the email and click the link to activate your account.
+          . When it arrives, open the link to activate your account.
         </p>
         {devToken ? (
           <FormMessage tone="code">
@@ -88,13 +97,15 @@ export function RegisterForm() {
   }
 
   return (
-    <form className="space-y-3.5" onSubmit={handleSubmit(onSubmit)}>
+    <form className="space-y-3.5" noValidate onSubmit={handleSubmit(onSubmit)}>
       <FormField
         error={errors.name?.message}
         id="name"
         label="Full name"
         placeholder="Jane Doe"
         type="text"
+        autoComplete="name"
+        required
         {...registerField("name")}
       />
       <FormField
@@ -103,6 +114,8 @@ export function RegisterForm() {
         label="Email"
         placeholder="you@example.com"
         type="email"
+        autoComplete="email"
+        required
         {...registerField("email")}
       />
       <FormField
@@ -111,11 +124,16 @@ export function RegisterForm() {
         label="Password"
         placeholder="At least 8 characters"
         type="password"
+        autoComplete="new-password"
+        required
+        hint={<PasswordGuidance password={password} />}
         {...registerField("password")}
       />
-      {formMessage ? <FormMessage>{formMessage}</FormMessage> : null}
+      <FormMessage tone={feedback?.tone}>{feedback?.message}</FormMessage>
       <SubmitButton isSubmitting={isSubmitting}>Create account</SubmitButton>
-      <AuthFormLink href="/login">Already have an account? Sign in</AuthFormLink>
+      <AuthFormLink href="/login">
+        Already have an account? Sign in
+      </AuthFormLink>
     </form>
   );
 }

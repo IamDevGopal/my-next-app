@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { verifyEmail } from "../api/auth.api";
+import { verifyEmailSchema } from "../schemas/auth.schema";
 import {
   getAccessToken,
   getAuthSessionVersion,
@@ -22,7 +23,7 @@ export function VerifyEmailFlow() {
   const searchParams = useSearchParams();
   const token = searchParams?.get("token") ?? null;
   const [status, setStatus] = useState<Status>(token ? "verifying" : "error");
-  const [confirmed, setConfirmed] = useState(false);
+  const [confirmedToken, setConfirmedToken] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(
     token ? null : MISSING_TOKEN_MESSAGE,
   );
@@ -38,9 +39,23 @@ export function VerifyEmailFlow() {
   } | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      startedRef.current = null;
+      setStatus("error");
+      setMessage(MISSING_TOKEN_MESSAGE);
+      return;
+    }
+    const parsed = verifyEmailSchema.safeParse({ token });
+    if (!parsed.success) {
+      startedRef.current = null;
+      setStatus("error");
+      setMessage(
+        parsed.error.issues[0]?.message ?? "Verification token is invalid",
+      );
+      return;
+    }
     if (!startedRef.current || startedRef.current.token !== token) {
-      if (getAccessToken() && !confirmed) {
+      if (getAccessToken() && confirmedToken !== token) {
         setStatus("confirmation");
         return;
       }
@@ -48,7 +63,7 @@ export function VerifyEmailFlow() {
         token,
         version: getAuthSessionVersion(),
         accessToken: getAccessToken(),
-        promise: verifyEmail({ token }),
+        promise: verifyEmail(parsed.data),
       };
     }
     const request = startedRef.current;
@@ -86,7 +101,7 @@ export function VerifyEmailFlow() {
     return () => {
       active = false;
     };
-  }, [token, router, confirmed]);
+  }, [token, router, confirmedToken]);
 
   if (status === "confirmation") {
     return (
@@ -98,7 +113,7 @@ export function VerifyEmailFlow() {
         <button
           type="button"
           className="rounded-md bg-emerald-700 px-4 py-2 text-white"
-          onClick={() => setConfirmed(true)}
+          onClick={() => setConfirmedToken(token)}
         >
           Verify and sign in to that account
         </button>

@@ -9,12 +9,12 @@ import { resendVerificationSchema } from "../schemas/auth.schema";
 import type { ResendVerificationFormValues } from "../types/auth.type";
 import { AuthFormLink } from "./auth-form-link";
 import { FormField } from "./form-field";
-import { FormMessage } from "./form-message";
+import { FormMessage, type FormFeedback } from "./form-message";
 import { SubmitButton } from "./submit-button";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 export function ResendVerificationForm() {
-  const [message, setMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<FormFeedback | null>(null);
   const [devToken, setDevToken] = useState<string | null>(null);
   const {
     register,
@@ -26,30 +26,34 @@ export function ResendVerificationForm() {
   });
 
   async function onSubmit(values: ResendVerificationFormValues) {
-    setMessage(null);
+    setFeedback(null);
     setDevToken(null);
     try {
       const response = await resendVerification(values);
-      setMessage(
-        response.message ??
+      setFeedback({
+        message:
+          response.message ??
           "If an account exists for this email, a verification link will be sent.",
-      );
+        tone: "success",
+      });
       setDevToken(response.data.verificationToken ?? null);
     } catch (error) {
-      setMessage(getErrorMessage(error));
+      setFeedback({ message: getErrorMessage(error), tone: "danger" });
     }
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+    <form className="space-y-4" noValidate onSubmit={handleSubmit(onSubmit)}>
       <FormField
         error={errors.email?.message}
         id="email"
         label="Email"
         type="email"
+        autoComplete="email"
+        required
         {...register("email")}
       />
-      {message ? <FormMessage>{message}</FormMessage> : null}
+      <FormMessage tone={feedback?.tone}>{feedback?.message}</FormMessage>
       {devToken ? (
         <FormMessage tone="code">
           Dev verification token: {devToken}

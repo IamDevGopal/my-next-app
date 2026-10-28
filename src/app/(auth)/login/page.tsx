@@ -1,6 +1,7 @@
 import { env } from "@/config/env";
 import { LoginForm } from "@/features/auth/components/login-form";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
+import { Suspense } from "react";
 
 const highlights = [
   "Plan personal and team work from one calm workspace.",
@@ -10,7 +11,7 @@ const highlights = [
 
 export default function LoginPage() {
   return (
-    <main className="h-dvh overflow-hidden bg-slate-50 text-slate-950">
+    <main className="min-h-dvh bg-slate-50 text-slate-950">
       <div className="mx-auto grid h-full max-w-6xl grid-rows-[2.25rem_minmax(0,1fr)] gap-3 px-4 py-3 sm:px-6 lg:py-4">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -61,7 +62,7 @@ export default function LoginPage() {
             </div>
           </section>
 
-          <section className="flex h-[24rem] items-center rounded-2xl bg-white px-5 py-5 ring-1 ring-slate-200 sm:px-7 lg:px-7">
+          <section className="flex min-h-[24rem] items-center rounded-2xl bg-white px-5 py-5 ring-1 ring-slate-200 sm:px-7 lg:px-7">
             <div className="w-full">
               <div className="mb-5 space-y-2">
                 <p className="text-sm font-semibold text-emerald-700 lg:hidden">
@@ -75,7 +76,9 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <LoginForm />
+              <Suspense fallback={<p role="status">Loading sign-in form…</p>}>
+                <LoginForm />
+              </Suspense>
             </div>
           </section>
         </div>

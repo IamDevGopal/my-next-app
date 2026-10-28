@@ -6,7 +6,7 @@ export default function ResetPasswordPage() {
   return (
     <AuthCard
       title="Set new password"
-      subtitle="Use the reset token from your email to set a new password."
+      subtitle="Open the reset link from your email to choose a new password."
     >
       <Suspense
         fallback={
