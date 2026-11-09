@@ -53,4 +53,6 @@ export interface SearchUsersResponseData {
   users: PublicUserData[];
 }
 
-export type UpdateCurrentUserPayload = UpdateCurrentUserFormValues;
+export type UpdateCurrentUserPayload = Partial<UpdateCurrentUserFormValues> & {
+  expectedUpdatedAt: string;
+};

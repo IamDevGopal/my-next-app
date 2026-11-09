@@ -10,8 +10,10 @@ import {
 
 interface AvatarUploadControlProps {
   avatarUrl: string | null;
+  busy?: boolean;
   disabled?: boolean;
   message?: string | null;
+  messageTone?: "neutral" | "success" | "danger";
   name: string;
   onRemove: () => Promise<void>;
   onUpload: (file: File) => Promise<void>;
@@ -19,8 +21,10 @@ interface AvatarUploadControlProps {
 
 export function AvatarUploadControl({
   avatarUrl,
+  busy = false,
   disabled = false,
   message,
+  messageTone = "neutral",
   name,
   onRemove,
   onUpload,
@@ -30,6 +34,11 @@ export function AvatarUploadControl({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const displayUrl = previewUrl ?? avatarUrl;
+  const errorId = `${inputId}-error`;
+  const messageId = `${inputId}-message`;
+  const feedbackIds = [localError ? errorId : null, message ? messageId : null]
+    .filter(Boolean)
+    .join(" ");
 
   useEffect(() => {
     return () => {
@@ -101,6 +110,9 @@ export function AvatarUploadControl({
           <input
             ref={inputRef}
             accept="image/jpeg,image/png,image/webp"
+            aria-label="Choose avatar image"
+            aria-describedby={feedbackIds || undefined}
+            aria-invalid={Boolean(localError)}
             className="sr-only"
             disabled={disabled}
             id={inputId}
@@ -114,7 +126,7 @@ export function AvatarUploadControl({
             type="button"
           >
             <Upload className="size-4" />
-            {disabled ? "Uploading" : "Upload"}
+            {busy ? "Uploading" : "Upload"}
           </button>
           <button
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70"
@@ -128,8 +140,16 @@ export function AvatarUploadControl({
         </div>
       </div>
 
-      {localError ? <FormMessage tone="danger">{localError}</FormMessage> : null}
-      {message ? <FormMessage tone="neutral">{message}</FormMessage> : null}
+      {localError ? (
+        <div id={errorId}>
+          <FormMessage tone="danger">{localError}</FormMessage>
+        </div>
+      ) : null}
+      {message ? (
+        <div id={messageId}>
+          <FormMessage tone={messageTone}>{message}</FormMessage>
+        </div>
+      ) : null}
     </section>
   );
 }

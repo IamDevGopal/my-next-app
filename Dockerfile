@@ -1,9 +1,11 @@
 FROM node:22-alpine AS base
 WORKDIR /app
+ENV HUSKY=0
 ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS deps
 COPY package.json package-lock.json ./
+COPY .husky/install.mjs .husky/install.mjs
 RUN npm ci
 
 FROM deps AS builder

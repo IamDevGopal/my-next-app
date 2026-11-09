@@ -49,6 +49,13 @@ export function ChatRequestPanel({
   const [requestMessage, setRequestMessage] = useState("");
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const searchControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      searchControllerRef.current?.abort();
+    };
+  }, []);
 
   // Request actions
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
@@ -93,22 +100,46 @@ export function ChatRequestPanel({
 
   async function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    searchControllerRef.current?.abort();
+    searchControllerRef.current = null;
+    setIsSearchingUsers(false);
 
-    if (query.trim().length < 2) {
-      onError("Type at least 2 characters.");
+    if (query.trim().length < 3) {
+      onError("Type at least 3 characters.");
+      return;
+    }
+
+    if (query.trim().length > 80) {
+      onError("Search by name or username using 80 characters or fewer.");
       return;
     }
 
     setIsSearchingUsers(true);
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
 
     try {
-      const response = await searchUsers({ accessToken, query, limit: 5 });
+      const response = await searchUsers({
+        accessToken,
+        query,
+        limit: 5,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) {
+        return;
+      }
       setUsers(response.data.users);
       setSelectedUser(null);
     } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
       onError(getErrorMessage(error));
     } finally {
-      setIsSearchingUsers(false);
+      if (searchControllerRef.current === controller) {
+        searchControllerRef.current = null;
+        setIsSearchingUsers(false);
+      }
     }
   }
 
@@ -199,8 +230,12 @@ export function ChatRequestPanel({
         <form className="flex gap-2" onSubmit={handleSearch}>
           <input
             className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search user by name"
+            maxLength={80}
+            onChange={(event) => {
+              searchControllerRef.current?.abort();
+              setQuery(event.target.value);
+            }}
+            placeholder="Search by name or username"
             value={query}
           />
           <button

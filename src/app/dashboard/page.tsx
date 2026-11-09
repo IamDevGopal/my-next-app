@@ -59,6 +59,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const requestController = new AbortController();
     async function loadUser() {
       const token = getAccessToken();
       const sessionVersion = getAuthSessionVersion();
@@ -73,7 +74,7 @@ export default function DashboardPage() {
       }
 
       try {
-        const response = await getCurrentUser(token);
+        const response = await getCurrentUser(token, requestController.signal);
         if (cancelled || getAuthSessionVersion() !== sessionVersion) return;
         setAccessToken(getAccessToken());
         setUser(response.data.user);
@@ -88,6 +89,7 @@ export default function DashboardPage() {
     void loadUser();
     return () => {
       cancelled = true;
+      requestController.abort();
     };
   }, [router, loadAttempt]);
 
@@ -344,6 +346,7 @@ export default function DashboardPage() {
                   </div>
                   <ProfileForm
                     accessToken={accessToken}
+                    key={user.id}
                     onUserUpdated={setUser}
                     user={user}
                   />
