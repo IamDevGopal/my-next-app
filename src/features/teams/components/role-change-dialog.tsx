@@ -17,7 +17,8 @@ const roleOptions: RoleOption[] = [
   {
     value: "EDITOR",
     label: "Editor",
-    description: "Can create and edit tasks, post comments, and collaborate on team resources.",
+    description:
+      "Can create and edit tasks, post comments, and collaborate on team resources.",
     icon: Pencil,
   },
   {
@@ -32,7 +33,10 @@ export interface RoleChangeDialogProps {
   member: TeamMemberData;
   isOpen: boolean;
   isBusy: boolean;
-  onConfirm: (memberId: string, role: Exclude<TeamMemberRole, "OWNER">) => void | Promise<void>;
+  onConfirm: (
+    memberId: string,
+    role: Exclude<TeamMemberRole, "OWNER">,
+  ) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -43,9 +47,9 @@ export function RoleChangeDialog({
   onConfirm,
   onClose,
 }: RoleChangeDialogProps) {
-  const [selectedRole, setSelectedRole] = useState<Exclude<TeamMemberRole, "OWNER">>(
-    member.role === "OWNER" ? "EDITOR" : member.role,
-  );
+  const [selectedRole, setSelectedRole] = useState<
+    Exclude<TeamMemberRole, "OWNER">
+  >(member.role === "OWNER" ? "EDITOR" : member.role);
 
   if (!isOpen) {
     return null;
@@ -66,7 +70,9 @@ export function RoleChangeDialog({
                 {member.user.name}
               </h3>
               <p className="truncate text-xs text-slate-500">
-                {member.user.username ? `@${member.user.username}` : "Team member"}
+                {member.user.username
+                  ? `@${member.user.username}`
+                  : "Team member"}
               </p>
             </div>
           </div>
@@ -114,7 +120,9 @@ export function RoleChangeDialog({
                 >
                   <div
                     className={`flex size-9 shrink-0 items-center justify-center rounded-md ${
-                      isSelected ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                      isSelected
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-100 text-slate-500"
                     }`}
                   >
                     <OptionIcon className="size-4" />

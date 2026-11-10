@@ -37,7 +37,9 @@ import {
   listReceivedTeamInvites,
   listTeamInvites,
   listTeamJoinRequests,
+  listTeamMembers,
   listTeams,
+  leaveTeam,
   removeTeamAvatar,
   removeTeamMember,
   rejectTeamInvite,
@@ -46,6 +48,7 @@ import {
   updateTeam,
   updateTeamAvatar,
   updateTeamMember,
+  transferTeamOwnership,
 } from "../api/teams.api";
 import type {
   PageInfoData,
@@ -80,14 +83,19 @@ const teamJoinPolicyOptions: TeamJoinPolicy[] = [
   "INVITE_OR_REQUEST",
 ];
 
-
-export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: TeamsWorkspaceProps) {
+export function TeamsWorkspace({
+  accessToken,
+  currentUserId,
+  isUserOnline,
+}: TeamsWorkspaceProps) {
   const [status, setStatus] = useState<TeamLoadStatus>("idle");
   const [teams, setTeams] = useState<TeamSummaryData[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<TeamDetailData | null>(null);
+  const [loadingTeamId, setLoadingTeamId] = useState<string | null>(null);
   const [receivedInvites, setReceivedInvites] = useState<TeamInviteData[]>([]);
   const [invites, setInvites] = useState<TeamInviteData[]>([]);
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
   const [joinRequests, setJoinRequests] = useState<TeamJoinRequestData[]>([]);
   const [discoverableTeams, setDiscoverableTeams] = useState<
     TeamDiscoveryData[]
@@ -105,20 +113,68 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
   const [isMyJoinRequestsLoading, setIsMyJoinRequestsLoading] = useState(false);
   const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const selectedTeamIdRef = useRef<string | null>(null);
+  const accountScopeRef = useRef(0);
+  const teamListRequestRef = useRef(0);
+  const teamDetailRequestRef = useRef(0);
+  const receivedInvitesRequestRef = useRef(0);
+  const discoveryRequestRef = useRef(0);
+  const myJoinRequestsRequestRef = useRef(0);
 
   const canEditTeamSettings = selectedTeam?.currentUserRole === "OWNER";
   const canInviteMembers =
     selectedTeam?.currentUserRole === "OWNER" ||
     selectedTeam?.currentUserRole === "EDITOR";
+  const canRevokeInvites = selectedTeam?.currentUserRole === "OWNER";
   const canManageMembers = selectedTeam?.currentUserRole === "OWNER";
+  const inviteDisplayTime = currentTime ?? 0;
+  const renderScope = accountScopeRef.current;
 
   useEffect(() => {
-    void loadTeams();
-    void loadReceivedInvites();
-    void loadDiscoverableTeams();
-    void loadMyJoinRequests();
+    const initialRefreshId = window.setTimeout(() => {
+      setCurrentTime(Date.now());
+    }, 0);
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 30_000);
+
+    return () => {
+      window.clearTimeout(initialRefreshId);
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    const scope = ++accountScopeRef.current;
+    teamListRequestRef.current += 1;
+    teamDetailRequestRef.current += 1;
+    receivedInvitesRequestRef.current += 1;
+    discoveryRequestRef.current += 1;
+    myJoinRequestsRequestRef.current += 1;
+    selectedTeamIdRef.current = null;
+    setStatus("loading");
+    setTeams([]);
+    setSelectedTeamId(null);
+    setSelectedTeam(null);
+    setLoadingTeamId(null);
+    setReceivedInvites([]);
+    setInvites([]);
+    setJoinRequests([]);
+    setDiscoverableTeams([]);
+    setDiscoverPageInfo(null);
+    setDiscoverQuery(undefined);
+    setMyJoinRequests([]);
+    setMyJoinRequestsPageInfo(null);
+    setIsDiscoverLoading(false);
+    setIsMyJoinRequestsLoading(false);
+    setIsCreateTeamOpen(false);
+    setMessage(null);
+    void loadTeams(scope);
+    void loadReceivedInvites(scope);
+    void loadDiscoverableTeams({}, scope);
+    void loadMyJoinRequests({}, scope);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken]);
+  }, [accessToken, currentUserId]);
 
   useEffect(() => {
     if (!selectedTeamId) {
@@ -129,28 +185,69 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTeamId]);
 
-  async function loadTeams() {
-    setStatus("loading");
+  function selectTeam(teamId: string | null) {
+    if (selectedTeamIdRef.current === teamId) return;
+
+    selectedTeamIdRef.current = teamId;
+    setSelectedTeamId(teamId);
+    setSelectedTeam(null);
+    setInvites([]);
+    setJoinRequests([]);
+    setLoadingTeamId(teamId);
     setMessage(null);
+    teamDetailRequestRef.current += 1;
+  }
+
+  async function loadTeams(scope = accountScopeRef.current) {
+    const requestId = ++teamListRequestRef.current;
+    const isCurrentRequest = () =>
+      scope === accountScopeRef.current &&
+      requestId === teamListRequestRef.current;
+
+    if (isCurrentRequest()) {
+      setStatus("loading");
+      setMessage(null);
+    }
 
     try {
       const response = await listTeams(accessToken);
+      if (!isCurrentRequest()) return;
+
       setTeams(response.data.teams);
-      setSelectedTeamId(
-        (current) => current ?? response.data.teams[0]?.id ?? null,
-      );
+      if (
+        !response.data.teams.some(
+          (team) => team.id === selectedTeamIdRef.current,
+        )
+      ) {
+        selectTeam(response.data.teams[0]?.id ?? null);
+      }
       setStatus("ready");
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setMessage(getErrorMessage(error));
       setStatus("error");
     }
   }
 
-  async function loadReceivedInvites() {
+  async function loadReceivedInvites(scope = accountScopeRef.current) {
+    const requestId = ++receivedInvitesRequestRef.current;
+    const isCurrentRequest = () =>
+      scope === accountScopeRef.current &&
+      requestId === receivedInvitesRequestRef.current;
+
     try {
-      const response = await listReceivedTeamInvites(accessToken);
-      setReceivedInvites(response.data.invites);
+      const [pendingResponse, expiredResponse] = await Promise.all([
+        listReceivedTeamInvites(accessToken, { status: "PENDING" }),
+        listReceivedTeamInvites(accessToken, { status: "EXPIRED" }),
+      ]);
+      if (!isCurrentRequest()) return;
+
+      setReceivedInvites([
+        ...pendingResponse.data.invites,
+        ...expiredResponse.data.invites,
+      ]);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setMessage(getErrorMessage(error));
     }
   }
@@ -161,8 +258,14 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
       cursor?: string | null;
       query?: string;
     } = {},
+    scope = accountScopeRef.current,
   ) {
-    setIsDiscoverLoading(true);
+    const requestId = ++discoveryRequestRef.current;
+    const isCurrentRequest = () =>
+      scope === accountScopeRef.current &&
+      requestId === discoveryRequestRef.current;
+
+    if (isCurrentRequest()) setIsDiscoverLoading(true);
 
     try {
       const response = await discoverTeams(accessToken, {
@@ -170,6 +273,8 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
         q: params.query,
         limit: 8,
       });
+      if (!isCurrentRequest()) return;
+
       setDiscoverableTeams((current) =>
         params.append
           ? [...current, ...response.data.teams]
@@ -177,9 +282,10 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
       );
       setDiscoverPageInfo(response.data.pageInfo);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setMessage(getErrorMessage(error));
     } finally {
-      setIsDiscoverLoading(false);
+      if (isCurrentRequest()) setIsDiscoverLoading(false);
     }
   }
 
@@ -188,79 +294,167 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
       append?: boolean;
       cursor?: string | null;
     } = {},
+    scope = accountScopeRef.current,
   ) {
-    setIsMyJoinRequestsLoading(true);
+    const requestId = ++myJoinRequestsRequestRef.current;
+    const isCurrentRequest = () =>
+      scope === accountScopeRef.current &&
+      requestId === myJoinRequestsRequestRef.current;
+
+    if (isCurrentRequest()) setIsMyJoinRequestsLoading(true);
 
     try {
       const response = await listMyJoinRequests(accessToken, {
         cursor: params.cursor,
         limit: 10,
       });
+      if (!isCurrentRequest()) return;
+
       setMyJoinRequests((current) =>
         params.append
-          ? [...current, ...response.data.joinRequests]
+          ? [
+              ...current,
+              ...response.data.joinRequests.filter(
+                (request) => !current.some((item) => item.id === request.id),
+              ),
+            ]
           : response.data.joinRequests,
       );
       setMyJoinRequestsPageInfo(response.data.pageInfo ?? null);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setMessage(getErrorMessage(error));
     } finally {
-      setIsMyJoinRequestsLoading(false);
+      if (isCurrentRequest()) setIsMyJoinRequestsLoading(false);
     }
   }
 
-  async function loadTeamDetail(teamId: string) {
+  async function loadTeamDetail(
+    teamId: string,
+    scope = accountScopeRef.current,
+    options: { preserveOnError?: boolean } = {},
+  ) {
+    if (
+      scope !== accountScopeRef.current ||
+      !teamId ||
+      selectedTeamIdRef.current !== teamId
+    ) {
+      return;
+    }
+
+    const requestId = ++teamDetailRequestRef.current;
+    const isCurrentRequest = () =>
+      scope === accountScopeRef.current &&
+      requestId === teamDetailRequestRef.current &&
+      selectedTeamIdRef.current === teamId;
+
     setMessage(null);
+    setLoadingTeamId(teamId);
 
     try {
       const teamResponse = await getTeam(accessToken, teamId);
+      if (!isCurrentRequest()) return;
+
       const role = teamResponse.data.team.currentUserRole;
       const canLoadManagementData = role === "OWNER" || role === "EDITOR";
-      const [invitesResponse, requestsResponse] = canLoadManagementData
-        ? await Promise.all([
-            listTeamInvites(accessToken, teamId),
-            listTeamJoinRequests(accessToken, teamId),
-          ])
-        : [null, null];
+      const [pendingInvitesResponse, expiredInvitesResponse, requestsResponse] =
+        canLoadManagementData
+          ? await Promise.all([
+              listTeamInvites(accessToken, teamId, { status: "PENDING" }),
+              listTeamInvites(accessToken, teamId, { status: "EXPIRED" }),
+              listTeamJoinRequests(accessToken, teamId),
+            ])
+          : [null, null, null];
+      if (!isCurrentRequest()) return;
 
       setSelectedTeam(teamResponse.data.team);
-      setInvites(invitesResponse?.data.invites ?? []);
+      setInvites([
+        ...(pendingInvitesResponse?.data.invites ?? []),
+        ...(expiredInvitesResponse?.data.invites ?? []),
+      ]);
       setJoinRequests(requestsResponse?.data.joinRequests ?? []);
     } catch (error) {
+      if (!isCurrentRequest()) return;
+      if (options.preserveOnError) throw error;
+      setSelectedTeam(null);
+      setInvites([]);
+      setJoinRequests([]);
       setMessage(getErrorMessage(error));
+    } finally {
+      if (isCurrentRequest()) setLoadingTeamId(null);
     }
   }
 
-  async function handleTeamCreated(team: TeamDetailData) {
-    await loadTeams();
-    setSelectedTeamId(team.id);
+  async function handleTeamCreated(
+    team: TeamDetailData,
+    scope = accountScopeRef.current,
+  ) {
+    if (scope !== accountScopeRef.current) return;
+
+    await loadTeams(scope);
+    if (scope !== accountScopeRef.current) return;
+
+    selectTeam(team.id);
     setIsCreateTeamOpen(false);
   }
 
-  async function handleTeamUpdated(team: TeamDetailData) {
+  function handleTeamUpdated(
+    team: TeamDetailData,
+    scope = accountScopeRef.current,
+  ) {
+    if (
+      scope !== accountScopeRef.current ||
+      selectedTeamIdRef.current !== team.id
+    ) {
+      return;
+    }
+
+    teamDetailRequestRef.current += 1;
+    teamListRequestRef.current += 1;
     setSelectedTeam(team);
     setTeams((currentTeams) =>
       currentTeams.map((item) => (item.id === team.id ? team : item)),
     );
   }
 
-  async function handleTeamDeleted() {
-    setSelectedTeam(null);
-    setSelectedTeamId(null);
-    await loadTeams();
-  }
-
-  async function refreshSelectedTeam() {
-    await loadReceivedInvites();
-    await loadDiscoverableTeams({ query: discoverQuery });
-    await loadMyJoinRequests();
-
-    if (!selectedTeamId) {
-      await loadTeams();
+  async function handleTeamDeleted(
+    scope = accountScopeRef.current,
+    deletedTeamId?: string,
+  ) {
+    if (
+      scope !== accountScopeRef.current ||
+      (deletedTeamId !== undefined &&
+        selectedTeamIdRef.current !== deletedTeamId)
+    ) {
       return;
     }
 
-    await loadTeamDetail(selectedTeamId);
+    selectTeam(null);
+    await loadTeams(scope);
+  }
+
+  async function refreshSelectedTeam(
+    scope = accountScopeRef.current,
+    expectedTeamId = selectedTeamId,
+  ) {
+    if (
+      scope !== accountScopeRef.current ||
+      selectedTeamIdRef.current !== expectedTeamId
+    ) {
+      return;
+    }
+
+    await loadReceivedInvites(scope);
+    await loadDiscoverableTeams({ query: discoverQuery }, scope);
+    await loadMyJoinRequests({}, scope);
+    if (scope !== accountScopeRef.current) return;
+
+    if (!selectedTeamId) {
+      await loadTeams(scope);
+      return;
+    }
+
+    await loadTeamDetail(selectedTeamId, scope);
   }
 
   return (
@@ -289,10 +483,12 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
 
       <ReceivedInvitesPanel
         accessToken={accessToken}
+        currentTime={inviteDisplayTime}
         invites={receivedInvites}
         onChanged={async () => {
-          await loadReceivedInvites();
-          await loadTeams();
+          if (renderScope !== accountScopeRef.current) return;
+          await loadReceivedInvites(renderScope);
+          await loadTeams(renderScope);
         }}
       />
 
@@ -303,30 +499,64 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
           pageInfo={discoverPageInfo}
           teams={discoverableTeams}
           onChanged={async () => {
-            await loadDiscoverableTeams({ query: discoverQuery });
-            await loadMyJoinRequests();
+            if (renderScope !== accountScopeRef.current) return;
+            await loadDiscoverableTeams({ query: discoverQuery }, renderScope);
+            await loadMyJoinRequests({}, renderScope);
           }}
           onLoadMore={async () => {
-            await loadDiscoverableTeams({
-              append: true,
-              cursor: discoverPageInfo?.nextCursor,
-              query: discoverQuery,
-            });
+            if (renderScope !== accountScopeRef.current) return;
+            await loadDiscoverableTeams(
+              {
+                append: true,
+                cursor: discoverPageInfo?.nextCursor,
+                query: discoverQuery,
+              },
+              renderScope,
+            );
           }}
           onSearch={async (query) => {
+            if (renderScope !== accountScopeRef.current) return;
             setDiscoverQuery(query);
-            await loadDiscoverableTeams({ query });
+            await loadDiscoverableTeams({ query }, renderScope);
           }}
         />
         <MyJoinRequestsPanel
           accessToken={accessToken}
           isLoading={isMyJoinRequestsLoading}
           joinRequests={myJoinRequests}
+          key={renderScope}
+          onCancelled={(request) => {
+            if (renderScope !== accountScopeRef.current) return;
+            myJoinRequestsRequestRef.current += 1;
+            setIsMyJoinRequestsLoading(false);
+            setMyJoinRequests((current) =>
+              current.map((item) => (item.id === request.id ? request : item)),
+            );
+            discoveryRequestRef.current += 1;
+            setIsDiscoverLoading(false);
+            setDiscoverableTeams((current) =>
+              current.map((team) =>
+                team.pendingJoinRequestId === request.id
+                  ? { ...team, pendingJoinRequestId: null }
+                  : team,
+              ),
+            );
+          }}
           onLoadMore={async () => {
-            await loadMyJoinRequests({
-              append: true,
-              cursor: myJoinRequestsPageInfo?.nextCursor,
-            });
+            if (
+              renderScope !== accountScopeRef.current ||
+              isMyJoinRequestsLoading ||
+              !myJoinRequestsPageInfo?.hasNextPage
+            ) {
+              return;
+            }
+            await loadMyJoinRequests(
+              {
+                append: true,
+                cursor: myJoinRequestsPageInfo.nextCursor,
+              },
+              renderScope,
+            );
           }}
           pageInfo={myJoinRequestsPageInfo}
         />
@@ -336,7 +566,7 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
         <aside className="min-w-0 border-b border-slate-200 p-3 sm:p-4 lg:border-b-0 lg:border-r">
           <button
             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
-            onClick={refreshSelectedTeam}
+            onClick={() => void refreshSelectedTeam(renderScope)}
             type="button"
           >
             <RefreshCcw className="size-4" />
@@ -344,7 +574,7 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
           </button>
           <TeamList
             isLoading={status === "loading"}
-            onSelect={setSelectedTeamId}
+            onSelect={selectTeam}
             onCreate={() => setIsCreateTeamOpen(true)}
             selectedTeamId={selectedTeamId}
             teams={teams}
@@ -371,8 +601,10 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
                 canEdit={canEditTeamSettings}
                 canDelete={canManageMembers}
                 key={selectedTeam.id}
-                onDeleted={handleTeamDeleted}
-                onUpdated={handleTeamUpdated}
+                onDeleted={() =>
+                  void handleTeamDeleted(renderScope, selectedTeam.id)
+                }
+                onUpdated={(team) => handleTeamUpdated(team, renderScope)}
                 team={selectedTeam}
               />
               <TeamTasksPanel
@@ -392,29 +624,38 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
               </section>
               <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
                 <TeamMembersPanel
+                  key={`${renderScope}:${selectedTeam.id}`}
                   accessToken={accessToken}
                   canManage={canManageMembers}
-                  members={selectedTeam.members}
+                  currentUserRole={selectedTeam.currentUserRole}
                   isUserOnline={isUserOnline}
-                  onMembersChanged={(members) =>
-                    setSelectedTeam((team) =>
-                      team ? { ...team, members } : team,
-                    )
+                  onLeft={() =>
+                    void handleTeamDeleted(renderScope, selectedTeam.id)
                   }
+                  onMembershipChanged={() =>
+                    loadTeamDetail(selectedTeam.id, renderScope, {
+                      preserveOnError: true,
+                    })
+                  }
+                  onTeamUpdated={(team) => handleTeamUpdated(team, renderScope)}
                   teamId={selectedTeam.id}
                 />
                 <TeamInvitePanel
                   accessToken={accessToken}
                   canInvite={canInviteMembers}
+                  canRevoke={canRevokeInvites}
+                  currentTime={inviteDisplayTime}
                   invites={invites}
-                  onInviteCreated={(invite) =>
-                    setInvites((current) => [invite, ...current])
-                  }
-                  onInviteRevoked={(inviteId) =>
+                  onInviteCreated={(invite) => {
+                    if (renderScope !== accountScopeRef.current) return;
+                    setInvites((current) => [invite, ...current]);
+                  }}
+                  onInviteRevoked={(inviteId) => {
+                    if (renderScope !== accountScopeRef.current) return;
                     setInvites((current) =>
                       current.filter((i) => i.id !== inviteId),
-                    )
-                  }
+                    );
+                  }}
                   teamId={selectedTeam.id}
                 />
               </div>
@@ -422,17 +663,61 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
                 accessToken={accessToken}
                 canManage={canManageMembers}
                 joinRequests={joinRequests}
-                onChanged={refreshSelectedTeam}
+                key={`${renderScope}:${selectedTeam.id}`}
+                onReviewed={(request) => {
+                  if (
+                    renderScope !== accountScopeRef.current ||
+                    selectedTeamIdRef.current !== selectedTeam.id
+                  ) {
+                    return;
+                  }
+                  teamDetailRequestRef.current += 1;
+                  setJoinRequests((current) =>
+                    current.map((item) =>
+                      item.id === request.id ? request : item,
+                    ),
+                  );
+                }}
+                onChanged={() =>
+                  loadTeamDetail(selectedTeam.id, renderScope, {
+                    preserveOnError: true,
+                  })
+                }
                 teamId={selectedTeam.id}
               />
             </div>
-          ) : (
+          ) : selectedTeamId && loadingTeamId === selectedTeamId ? (
+            <div className="flex min-h-64 items-center justify-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm font-medium text-slate-600">
+              <Loader2 className="size-5 animate-spin" />
+              Loading{" "}
+              {teams.find((team) => team.id === selectedTeamId)?.name ??
+                "selected team"}
+              ...
+            </div>
+          ) : selectedTeamId ? (
+            <EmptyState
+              icon={<X className="size-5" />}
+              title="Team details could not load"
+              text="Refresh the selected team to try again."
+            />
+          ) : status === "loading" ? (
+            <div className="flex min-h-64 items-center justify-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm font-medium text-slate-600">
+              <Loader2 className="size-5 animate-spin" />
+              Loading your teams...
+            </div>
+          ) : teams.length === 0 ? (
             <EmptyState
               actionLabel="Create team"
               icon={<Plus className="size-5" />}
               onAction={() => setIsCreateTeamOpen(true)}
               title="Create your first team"
               text="Teams bring tasks, members, chat, and future calls into one workspace."
+            />
+          ) : (
+            <EmptyState
+              icon={<UsersRound className="size-5" />}
+              title="Select a team"
+              text="Choose a team from your list to view its shared workspace."
             />
           )}
         </div>
@@ -442,7 +727,7 @@ export function TeamsWorkspace({ accessToken, currentUserId, isUserOnline }: Tea
         accessToken={accessToken}
         isOpen={isCreateTeamOpen}
         onClose={() => setIsCreateTeamOpen(false)}
-        onCreated={handleTeamCreated}
+        onCreated={(team) => handleTeamCreated(team, renderScope)}
       />
     </section>
   );
@@ -457,22 +742,33 @@ interface CreateTeamDialogProps {
 
 interface ReceivedInvitesPanelProps {
   accessToken: string;
+  currentTime: number;
   invites: TeamInviteData[];
   onChanged: () => void | Promise<void>;
 }
 
 function ReceivedInvitesPanel({
   accessToken,
+  currentTime,
   invites,
   onChanged,
 }: ReceivedInvitesPanelProps) {
+  const expiredInvites = invites.filter((invite) =>
+    isInviteExpired(invite, currentTime),
+  );
   const pendingInvites = invites.filter(
-    (invite) => invite.status === "PENDING",
+    (invite) =>
+      invite.status === "PENDING" && !isInviteExpired(invite, currentTime),
   );
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   async function respond(inviteId: string, action: "accept" | "reject") {
+    const invite = invites.find((item) => item.id === inviteId);
+    if (!invite || invite.status !== "PENDING" || isInviteExpired(invite)) {
+      return;
+    }
+
     setBusyInviteId(inviteId);
     setMessage(null);
 
@@ -491,7 +787,7 @@ function ReceivedInvitesPanel({
     }
   }
 
-  if (pendingInvites.length === 0) {
+  if (pendingInvites.length === 0 && expiredInvites.length === 0) {
     return null;
   }
 
@@ -499,11 +795,10 @@ function ReceivedInvitesPanel({
     <section className="border-b border-slate-200 bg-emerald-50/60 px-3 py-3 sm:px-5 sm:py-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-950">
-            Pending team invites
-          </h3>
+          <h3 className="text-sm font-semibold text-slate-950">Team invites</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Review invites before they become active memberships.
+            Pending invites can be accepted or rejected. Expired invites are
+            shown for reference only.
           </p>
         </div>
         {message ? (
@@ -530,10 +825,19 @@ function ReceivedInvitesPanel({
             {invite.message ? (
               <p className="mt-2 text-sm text-slate-600">{invite.message}</p>
             ) : null}
+            {invite.expiresAt ? (
+              <p className="mt-2 text-xs text-slate-500">
+                Sent {formatInviteDate(invite.createdAt)} · Expires{" "}
+                {formatInviteDate(invite.expiresAt)}
+              </p>
+            ) : null}
             <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row">
               <button
                 className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-70"
-                disabled={busyInviteId === invite.id}
+                disabled={
+                  busyInviteId === invite.id ||
+                  isInviteExpired(invite, currentTime)
+                }
                 onClick={() => void respond(invite.id, "accept")}
                 type="button"
               >
@@ -546,7 +850,10 @@ function ReceivedInvitesPanel({
               </button>
               <button
                 className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-70"
-                disabled={busyInviteId === invite.id}
+                disabled={
+                  busyInviteId === invite.id ||
+                  isInviteExpired(invite, currentTime)
+                }
                 onClick={() => void respond(invite.id, "reject")}
                 type="button"
               >
@@ -557,6 +864,58 @@ function ReceivedInvitesPanel({
           </article>
         ))}
       </div>
+      {expiredInvites.length > 0 ? (
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-100/70 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="text-sm font-semibold text-slate-700">
+              Expired invites
+            </h4>
+            <span className="rounded-md bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-600">
+              No actions available
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {expiredInvites.map((invite) => (
+              <article
+                className="rounded-md border border-slate-200 bg-white p-3"
+                key={invite.id}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-800">
+                      {invite.team.name}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Invited by {invite.inviter.name} as{" "}
+                      {formatEnum(invite.role)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                    Expired
+                  </span>
+                </div>
+                {invite.message ? (
+                  <p className="mt-2 text-sm text-slate-600">
+                    {invite.message}
+                  </p>
+                ) : null}
+                <p className="mt-2 text-xs text-slate-500">
+                  Sent {formatInviteDate(invite.createdAt)}
+                </p>
+                {invite.expiresAt ? (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Expired {formatInviteDate(invite.expiresAt)}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Expiry date unavailable
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -586,7 +945,9 @@ function DiscoverTeamsPanel({
   const [messageByTeamId, setMessageByTeamId] = useState<
     Record<string, string>
   >({});
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [busyTeamId, setBusyTeamId] = useState<string | null>(null);
+  const isSearchTooShort = query.trim().length > 0 && query.trim().length < 3;
 
   useEffect(() => {
     onSearchRef.current = onSearch;
@@ -598,8 +959,16 @@ function DiscoverTeamsPanel({
       return;
     }
 
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length > 0 && normalizedQuery.length < 3) {
+      setSearchMessage("Enter at least 3 characters to search teams.");
+      return;
+    }
+
+    setSearchMessage(null);
+
     const timeoutId = window.setTimeout(() => {
-      void onSearchRef.current(query.trim() || undefined);
+      void onSearchRef.current(normalizedQuery || undefined);
     }, 350);
 
     return () => window.clearTimeout(timeoutId);
@@ -607,7 +976,14 @@ function DiscoverTeamsPanel({
 
   async function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await onSearch(query.trim() || undefined);
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length > 0 && normalizedQuery.length < 3) {
+      setSearchMessage("Enter at least 3 characters to search teams.");
+      return;
+    }
+
+    setSearchMessage(null);
+    await onSearch(normalizedQuery || undefined);
   }
 
   async function requestToJoin(team: TeamDiscoveryData) {
@@ -639,18 +1015,21 @@ function DiscoverTeamsPanel({
             Discover teams
           </h3>
           <p className="mt-1 text-sm text-slate-500">
-            Find public/internal teams and request access.
+            Find public/internal teams and request access. Search requires at
+            least 3 characters.
           </p>
         </div>
         <form className="flex min-w-0 gap-2 sm:w-80" onSubmit={handleSearch}>
           <input
             className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
+            minLength={3}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search teams"
             value={query}
           />
           <button
             className="inline-flex size-10 items-center justify-center rounded-md bg-slate-950 text-white"
+            disabled={isLoading || isSearchTooShort}
             title="Search teams"
             type="submit"
           >
@@ -658,67 +1037,77 @@ function DiscoverTeamsPanel({
           </button>
         </form>
       </div>
+      {searchMessage ? (
+        <p className="mt-2 text-sm font-medium text-amber-700">
+          {searchMessage}
+        </p>
+      ) : null}
       <div className="mt-4 max-h-112 overflow-y-auto pr-1">
         <div className="grid min-w-0 gap-3 md:grid-cols-2">
-        {teams.map((team) => {
-          const cannotRequest =
-            team.joinPolicy === "INVITE_ONLY" ||
-            team.pendingJoinRequestId !== null;
+          {isSearchTooShort
+            ? null
+            : teams.map((team) => {
+                const cannotRequest =
+                  team.joinPolicy === "INVITE_ONLY" ||
+                  team.pendingJoinRequestId !== null;
 
-          return (
-            <article
-              className="min-w-0 rounded-md border border-slate-200 bg-white p-3"
-              key={team.id}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-950">
-                    {team.name}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {formatEnum(team.visibility)} · {team.membersCount} members
-                  </p>
-                </div>
-                <StatusPill value={team.joinPolicy} />
-              </div>
-              {team.description ? (
-                <p className="mt-2 line-clamp-2 text-sm text-slate-600">
-                  {team.description}
-                </p>
-              ) : null}
-              <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
-                <p className="min-w-0 truncate text-xs text-slate-500">
-                  Owner: {team.owner.name}
-                </p>
-                <button
-                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={cannotRequest || busyTeamId === team.id}
-                  onClick={() => void requestToJoin(team)}
-                  type="button"
-                >
-                  {busyTeamId === team.id ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <UserPlus className="size-4" />
-                  )}
-                  {team.pendingJoinRequestId ? "Requested" : "Request"}
-                </button>
-              </div>
-              {messageByTeamId[team.id] ? (
-                <p className="mt-2 text-xs font-medium text-slate-500">
-                  {messageByTeamId[team.id]}
-                </p>
-              ) : null}
-            </article>
-          );
-        })}
-        {teams.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            {isLoading ? "Searching teams..." : "No discoverable teams found."}
-          </p>
-        ) : null}
+                return (
+                  <article
+                    className="min-w-0 rounded-md border border-slate-200 bg-white p-3"
+                    key={team.id}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-950">
+                          {team.name}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatEnum(team.visibility)} · {team.membersCount}{" "}
+                          members
+                        </p>
+                      </div>
+                      <StatusPill value={team.joinPolicy} />
+                    </div>
+                    {team.description ? (
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-600">
+                        {team.description}
+                      </p>
+                    ) : null}
+                    <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
+                      <p className="min-w-0 truncate text-xs text-slate-500">
+                        Owner: {team.owner.name}
+                      </p>
+                      <button
+                        className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={cannotRequest || busyTeamId === team.id}
+                        onClick={() => void requestToJoin(team)}
+                        type="button"
+                      >
+                        {busyTeamId === team.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <UserPlus className="size-4" />
+                        )}
+                        {team.pendingJoinRequestId ? "Requested" : "Request"}
+                      </button>
+                    </div>
+                    {messageByTeamId[team.id] ? (
+                      <p className="mt-2 text-xs font-medium text-slate-500">
+                        {messageByTeamId[team.id]}
+                      </p>
+                    ) : null}
+                  </article>
+                );
+              })}
+          {!isSearchTooShort && teams.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              {isLoading
+                ? "Searching teams..."
+                : "No discoverable teams found."}
+            </p>
+          ) : null}
         </div>
-        {pageInfo?.hasNextPage ? (
+        {!isSearchTooShort && pageInfo?.hasNextPage ? (
           <button
             className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
             disabled={isLoading}
@@ -738,19 +1127,30 @@ function MyJoinRequestsPanel({
   accessToken,
   isLoading,
   joinRequests,
+  onCancelled,
   onLoadMore,
   pageInfo,
 }: {
   accessToken: string;
   isLoading: boolean;
   joinRequests: TeamJoinRequestData[];
+  onCancelled: (request: TeamJoinRequestData) => void;
   onLoadMore: () => void | Promise<void>;
   pageInfo: PageInfoData | null;
 }) {
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
+  const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({});
+  const cancelLocksRef = useRef(new Set<string>());
 
   async function handleCancel(requestId: string) {
+    const request = joinRequests.find((item) => item.id === requestId);
+    if (
+      request?.status !== "PENDING" ||
+      cancelLocksRef.current.has(requestId)
+    ) {
+      return;
+    }
+
     const confirmed = window.confirm(
       "Cancel this join request? You can request again later.",
     );
@@ -759,17 +1159,21 @@ function MyJoinRequestsPanel({
       return;
     }
 
-    setCancellingId(requestId);
-    setCancelError(null);
+    cancelLocksRef.current.add(requestId);
+    setCancellingIds(new Set(cancelLocksRef.current));
+    setCancelErrors((current) => ({ ...current, [requestId]: "" }));
 
     try {
-      await cancelJoinRequest(accessToken, requestId);
-      // Reload to update the list
-      await onLoadMore();
+      const response = await cancelJoinRequest(accessToken, requestId);
+      onCancelled(response.data.joinRequest);
     } catch (error) {
-      setCancelError(getErrorMessage(error));
+      setCancelErrors((current) => ({
+        ...current,
+        [requestId]: getErrorMessage(error),
+      }));
     } finally {
-      setCancellingId(null);
+      cancelLocksRef.current.delete(requestId);
+      setCancellingIds(new Set(cancelLocksRef.current));
     }
   }
 
@@ -800,26 +1204,29 @@ function MyJoinRequestsPanel({
                 <div className="mt-1.5">
                   <StatusPill value={request.status} />
                 </div>
+                {cancelErrors[request.id] ? (
+                  <p
+                    className="mt-2 text-xs font-medium text-rose-600"
+                    role="alert"
+                  >
+                    {cancelErrors[request.id]}
+                  </p>
+                ) : null}
               </div>
               {isPending ? (
                 <button
                   className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-500 transition hover:bg-rose-50 disabled:opacity-60"
-                  disabled={cancellingId === request.id}
+                  disabled={cancellingIds.has(request.id)}
                   onClick={() => void handleCancel(request.id)}
                   title="Cancel request"
                   type="button"
                 >
-                  {cancellingId === request.id ? (
+                  {cancellingIds.has(request.id) ? (
                     <Loader2 className="size-3.5 animate-spin" />
                   ) : (
                     <X className="size-3.5" />
                   )}
                 </button>
-              ) : null}
-              {cancelError && cancellingId === null ? (
-                <p className="mt-2 text-xs font-medium text-rose-600">
-                  {cancelError}
-                </p>
               ) : null}
             </article>
           );
@@ -900,7 +1307,7 @@ function CreateTeamDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
       <form
-      className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
+        className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
         onSubmit={handleSubmit}
       >
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
@@ -923,11 +1330,7 @@ function CreateTeamDialog({
         </div>
 
         <div className="space-y-4 px-4 py-5 sm:px-5">
-          <TextField
-            label="Team name"
-            onChange={setName}
-            value={name}
-          />
+          <TextField label="Team name" onChange={setName} value={name} />
           <label className="block text-sm font-semibold text-slate-800">
             Description
             <textarea
@@ -1269,36 +1672,101 @@ function TeamOverview({
 interface TeamMembersPanelProps {
   accessToken: string;
   canManage: boolean;
-  members: TeamMemberData[];
+  currentUserRole: TeamMemberData["role"];
   isUserOnline?: (userId: string) => boolean;
-  onMembersChanged: (members: TeamMemberData[]) => void;
+  onLeft: () => void;
+  onMembershipChanged: () => Promise<void>;
+  onTeamUpdated: (team: TeamDetailData) => void;
   teamId: string;
 }
 
 function TeamMembersPanel({
   accessToken,
   canManage,
-  members,
+  currentUserRole,
   isUserOnline,
-  onMembersChanged,
+  onLeft,
+  onMembershipChanged,
+  onTeamUpdated,
   teamId,
 }: TeamMembersPanelProps) {
+  const [members, setMembers] = useState<TeamMemberData[]>([]);
+  const [pageInfo, setPageInfo] = useState<PageInfoData | null>(null);
+  const [isMembersLoading, setIsMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState<string | null>(null);
   const [roleChangeMember, setRoleChangeMember] =
     useState<TeamMemberData | null>(null);
   const [isRoleChangeBusy, setIsRoleChangeBusy] = useState(false);
   const [roleChangeError, setRoleChangeError] = useState<string | null>(null);
+  const [isGovernanceBusy, setIsGovernanceBusy] = useState(false);
+  const [removingMemberIds, setRemovingMemberIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [removalErrors, setRemovalErrors] = useState<Record<string, string>>(
+    {},
+  );
+  const removalLocksRef = useRef(new Set<string>());
+  const membersRequestRef = useRef(0);
+  const membersScopeRef = useRef(0);
 
-  async function handleRoleChange(
-    memberId: string,
-    role: "EDITOR" | "VIEWER",
+  useEffect(() => {
+    const scope = ++membersScopeRef.current;
+    void loadMembers({}, scope);
+    return () => {
+      membersScopeRef.current += 1;
+      membersRequestRef.current += 1;
+    };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [accessToken, teamId]);
+
+  async function loadMembers(
+    params: { append?: boolean; cursor?: string | null } = {},
+    scope = membersScopeRef.current,
   ) {
+    if (scope !== membersScopeRef.current) return;
+    const requestId = ++membersRequestRef.current;
+    const isCurrentRequest = () =>
+      scope === membersScopeRef.current &&
+      requestId === membersRequestRef.current;
+
+    setIsMembersLoading(true);
+    setMembersError(null);
+
+    try {
+      const response = await listTeamMembers(accessToken, teamId, {
+        cursor: params.cursor,
+        limit: 20,
+      });
+      if (!isCurrentRequest()) return;
+      setMembers((current) =>
+        params.append
+          ? [
+              ...current,
+              ...response.data.members.filter(
+                (member) => !current.some((item) => item.id === member.id),
+              ),
+            ]
+          : response.data.members,
+      );
+      setPageInfo(response.data.pageInfo);
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setMembersError(getErrorMessage(error));
+    } finally {
+      if (isCurrentRequest()) setIsMembersLoading(false);
+    }
+  }
+
+  async function handleRoleChange(memberId: string, role: "EDITOR" | "VIEWER") {
+    if (removalLocksRef.current.size > 0) return;
     setIsRoleChangeBusy(true);
 
     try {
-      const response = await updateTeamMember(accessToken, teamId, memberId, {
+      await updateTeamMember(accessToken, teamId, memberId, {
         role,
       });
-      onMembersChanged(response.data.members);
+      await loadMembers();
+      await onMembershipChanged();
       setRoleChangeMember(null);
     } catch (error) {
       setRoleChangeError(getErrorMessage(error));
@@ -1308,6 +1776,20 @@ function TeamMembersPanel({
   }
 
   async function handleRemove(memberId: string) {
+    const member = members.find((item) => item.id === memberId);
+    if (
+      !canManage ||
+      !member ||
+      member.role === "OWNER" ||
+      isGovernanceBusy ||
+      isRoleChangeBusy ||
+      isMembersLoading ||
+      membersError !== null ||
+      removalLocksRef.current.has(memberId)
+    ) {
+      return;
+    }
+
     const confirmed = window.confirm(
       "Remove this member from the team? This action can be undone by re-inviting them.",
     );
@@ -1316,15 +1798,118 @@ function TeamMembersPanel({
       return;
     }
 
-    const response = await removeTeamMember(accessToken, teamId, memberId);
-    onMembersChanged(response.data.members);
+    const scope = membersScopeRef.current;
+    removalLocksRef.current.add(memberId);
+    setRemovingMemberIds(new Set(removalLocksRef.current));
+    setRemovalErrors((current) => ({ ...current, [memberId]: "" }));
+
+    try {
+      await removeTeamMember(accessToken, teamId, memberId);
+      if (scope !== membersScopeRef.current) return;
+      membersRequestRef.current += 1;
+      setMembers((current) => current.filter((item) => item.id !== memberId));
+    } catch (error) {
+      if (scope !== membersScopeRef.current) return;
+      setRemovalErrors((current) => ({
+        ...current,
+        [memberId]: `${member.user.name}: ${getErrorMessage(error)}`,
+      }));
+    }
+
+    /* Re-read after either outcome: a failed response may follow a committed removal. */
+    try {
+      if (scope !== membersScopeRef.current) return;
+      await loadMembers({}, scope);
+      if (scope !== membersScopeRef.current) return;
+      await onMembershipChanged();
+    } catch (error) {
+      if (scope !== membersScopeRef.current) return;
+      setMembersError(
+        `Team details could not refresh: ${getErrorMessage(error)}`,
+      );
+    } finally {
+      if (scope === membersScopeRef.current) {
+        removalLocksRef.current.delete(memberId);
+        setRemovingMemberIds(new Set(removalLocksRef.current));
+      }
+    }
+  }
+
+  async function refreshMembers() {
+    const scope = membersScopeRef.current;
+    await loadMembers({}, scope);
+    if (scope !== membersScopeRef.current) return;
+    try {
+      await onMembershipChanged();
+    } catch (error) {
+      if (scope !== membersScopeRef.current) return;
+      setMembersError(getErrorMessage(error));
+    }
+  }
+
+  async function handleTransferOwnership(member: TeamMemberData) {
+    if (removalLocksRef.current.size > 0) return;
+    const confirmed = window.confirm(
+      `Transfer team ownership to ${member.user.name}? You will become an editor.`,
+    );
+
+    if (!confirmed) return;
+
+    setIsGovernanceBusy(true);
+    setMembersError(null);
+
+    try {
+      const response = await transferTeamOwnership(
+        accessToken,
+        teamId,
+        member.id,
+      );
+      onTeamUpdated(response.data.team);
+      await loadMembers();
+    } catch (error) {
+      setMembersError(getErrorMessage(error));
+    } finally {
+      setIsGovernanceBusy(false);
+    }
+  }
+
+  async function handleLeaveTeam() {
+    const confirmed = window.confirm(
+      "Leave this team? You will lose access to its tasks and chat.",
+    );
+
+    if (!confirmed) return;
+
+    setIsGovernanceBusy(true);
+    setMembersError(null);
+
+    try {
+      await leaveTeam(accessToken, teamId);
+      onLeft();
+    } catch (error) {
+      setMembersError(getErrorMessage(error));
+    } finally {
+      setIsGovernanceBusy(false);
+    }
   }
 
   return (
     <section className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-slate-950">Members</h3>
-        <UsersRound className="size-5 text-slate-400" />
+        <div className="flex items-center gap-2">
+          {currentUserRole !== "OWNER" ? (
+            <button
+              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-60"
+              disabled={isGovernanceBusy}
+              onClick={() => void handleLeaveTeam()}
+              type="button"
+            >
+              Leave team
+            </button>
+          ) : null}
+          <UsersRound className="size-5 text-slate-400" />
+        </div>
       </div>
       <div className="mt-4 space-y-3">
         {members.map((member) => (
@@ -1362,7 +1947,8 @@ function TeamMembersPanel({
             <div className="flex min-w-0 items-center gap-2">
               {canManage && member.role !== "OWNER" ? (
                 <button
-                  className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  disabled={removingMemberIds.size > 0 || isGovernanceBusy}
                   onClick={() => setRoleChangeMember(member)}
                   title="Change role"
                   type="button"
@@ -1374,22 +1960,100 @@ function TeamMembersPanel({
                 <RoleBadge role={member.role} />
               )}
               {canManage && member.role !== "OWNER" ? (
-                <button
-                  className="inline-flex size-9 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-600 transition hover:bg-rose-50"
-                  onClick={() => void handleRemove(member.id)}
-                  title="Remove member"
-                  type="button"
-                >
-                  <Trash2 className="size-4" />
-                </button>
+                <>
+                  <button
+                    className="rounded-md border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-60"
+                    disabled={
+                      isGovernanceBusy ||
+                      isRoleChangeBusy ||
+                      removingMemberIds.size > 0
+                    }
+                    onClick={() => void handleTransferOwnership(member)}
+                    type="button"
+                  >
+                    Make owner
+                  </button>
+                  <button
+                    className="inline-flex size-9 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+                    disabled={
+                      removingMemberIds.has(member.id) ||
+                      isGovernanceBusy ||
+                      isRoleChangeBusy ||
+                      isMembersLoading ||
+                      membersError !== null
+                    }
+                    onClick={() => void handleRemove(member.id)}
+                    title="Remove member"
+                    type="button"
+                  >
+                    {removingMemberIds.has(member.id) ? (
+                      <Loader2
+                        aria-label="Removing member"
+                        className="size-4 animate-spin"
+                      />
+                    ) : (
+                      <Trash2 className="size-4" />
+                    )}
+                  </button>
+                </>
               ) : null}
             </div>
           </article>
         ))}
       </div>
 
+      {membersError ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-sm font-medium text-rose-600" role="alert">
+            {membersError}
+          </p>
+          <button
+            className="text-sm font-semibold text-emerald-700 disabled:opacity-60"
+            disabled={isMembersLoading || removingMemberIds.size > 0}
+            onClick={() => void refreshMembers()}
+            type="button"
+          >
+            Refresh members
+          </button>
+        </div>
+      ) : null}
+      {Object.entries(removalErrors).map(([memberId, error]) =>
+        error ? (
+          <p
+            className="mt-3 text-sm font-medium text-rose-600"
+            key={memberId}
+            role="alert"
+          >
+            {error}
+          </p>
+        ) : null,
+      )}
+
+      {pageInfo?.hasNextPage ? (
+        <button
+          className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+          disabled={
+            isMembersLoading ||
+            removingMemberIds.size > 0 ||
+            membersError !== null
+          }
+          onClick={() =>
+            void loadMembers({ append: true, cursor: pageInfo.nextCursor })
+          }
+          type="button"
+        >
+          {isMembersLoading ? "Loading…" : "Load more members"}
+        </button>
+      ) : null}
+
+      {isMembersLoading && members.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">Loading members…</p>
+      ) : null}
+
       {roleChangeError ? (
-        <p className="mt-3 text-sm font-medium text-rose-600">{roleChangeError}</p>
+        <p className="mt-3 text-sm font-medium text-rose-600">
+          {roleChangeError}
+        </p>
       ) : null}
 
       {roleChangeMember ? (
@@ -1411,6 +2075,8 @@ function TeamMembersPanel({
 interface TeamInvitePanelProps {
   accessToken: string;
   canInvite: boolean;
+  canRevoke: boolean;
+  currentTime: number;
   invites: TeamInviteData[];
   onInviteCreated: (invite: TeamInviteData) => void;
   onInviteRevoked: (inviteId: string) => void;
@@ -1420,6 +2086,8 @@ interface TeamInvitePanelProps {
 function TeamInvitePanel({
   accessToken,
   canInvite,
+  canRevoke,
+  currentTime,
   invites,
   onInviteCreated,
   onInviteRevoked,
@@ -1511,6 +2179,13 @@ function TeamInvitePanel({
   }
 
   async function handleRevoke(inviteId: string) {
+    if (!canRevoke || revokingInviteId !== null) return;
+
+    const invite = invites.find((item) => item.id === inviteId);
+    if (!invite || invite.status !== "PENDING" || isInviteExpired(invite)) {
+      return;
+    }
+
     const confirmed = window.confirm(
       "Revoke this invite? The invited user will no longer be able to accept it.",
     );
@@ -1531,9 +2206,17 @@ function TeamInvitePanel({
     }
   }
 
+  const expiredInvites = useMemo(
+    () => invites.filter((invite) => isInviteExpired(invite, currentTime)),
+    [currentTime, invites],
+  );
   const pendingInvites = useMemo(
-    () => invites.filter((invite) => invite.status === "PENDING"),
-    [invites],
+    () =>
+      invites.filter(
+        (invite) =>
+          invite.status === "PENDING" && !isInviteExpired(invite, currentTime),
+      ),
+    [currentTime, invites],
   );
 
   return (
@@ -1568,7 +2251,7 @@ function TeamInvitePanel({
           <div className="mt-3 space-y-2">
             {users.map((user) => (
               <button
-              className={`flex w-full min-w-0 items-center gap-2 rounded-md border p-2 text-left ${
+                className={`flex w-full min-w-0 items-center gap-2 rounded-md border p-2 text-left ${
                   selectedUser?.id === user.id
                     ? "border-emerald-300 bg-emerald-50"
                     : "border-slate-200 bg-white"
@@ -1608,6 +2291,11 @@ function TeamInvitePanel({
         </div>
       ) : null}
 
+      {canInvite && !canRevoke ? (
+        <p className="mt-3 text-xs text-slate-500">
+          Only the team owner can revoke pending invites.
+        </p>
+      ) : null}
       <div className="mt-4 space-y-2">
         {pendingInvites.map((invite) => (
           <div
@@ -1625,11 +2313,25 @@ function TeamInvitePanel({
                   {formatEnum(invite.status)}
                 </span>
               </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Sent {formatInviteDate(invite.createdAt)}
+                {invite.expiresAt
+                  ? ` · Expires ${formatInviteDate(invite.expiresAt)}`
+                  : ""}
+              </p>
+              {invite.message ? (
+                <p className="mt-1 break-words text-xs text-slate-600">
+                  {invite.message}
+                </p>
+              ) : null}
             </div>
-            {canInvite ? (
+            {canRevoke ? (
               <button
                 className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-rose-200 bg-white text-rose-500 transition hover:bg-rose-50 disabled:opacity-60"
-                disabled={revokingInviteId === invite.id}
+                disabled={
+                  revokingInviteId !== null ||
+                  isInviteExpired(invite, currentTime)
+                }
                 onClick={() => void handleRevoke(invite.id)}
                 title="Revoke invite"
                 type="button"
@@ -1657,6 +2359,57 @@ function TeamInvitePanel({
           </div>
         ) : null}
       </div>
+      {expiredInvites.length > 0 ? (
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-100/70 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="text-sm font-semibold text-slate-700">
+              Expired invites
+            </h4>
+            <span className="rounded-md bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-600">
+              No actions available
+            </span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {expiredInvites.map((invite) => (
+              <article
+                className="rounded-md border border-slate-200 bg-white p-3"
+                key={invite.id}
+              >
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-800">
+                      {invite.inviteeUser?.name ?? "Invited user"}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <RoleBadge role={invite.role} size="sm" />
+                      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                        Expired
+                      </span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-slate-500">
+                    Sent {formatInviteDate(invite.createdAt)}
+                  </span>
+                </div>
+                {invite.message ? (
+                  <p className="mt-2 break-words text-sm text-slate-600">
+                    {invite.message}
+                  </p>
+                ) : null}
+                {invite.expiresAt ? (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Expired {formatInviteDate(invite.expiresAt)}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Expiry date unavailable
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -1666,6 +2419,7 @@ interface JoinRequestsPanelProps {
   canManage: boolean;
   joinRequests: TeamJoinRequestData[];
   onChanged: () => void | Promise<void>;
+  onReviewed: (request: TeamJoinRequestData) => void;
   teamId: string;
 }
 
@@ -1674,20 +2428,97 @@ function JoinRequestsPanel({
   canManage,
   joinRequests,
   onChanged,
+  onReviewed,
   teamId,
 }: JoinRequestsPanelProps) {
+  const [pendingReviews, setPendingReviews] = useState<
+    Record<string, "approve" | "reject">
+  >({});
+  const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const reviewLocksRef = useRef(new Set<string>());
+  const refreshLockRef = useRef(false);
+  const isActiveRef = useRef(true);
+
+  useEffect(() => {
+    isActiveRef.current = true;
+    return () => {
+      isActiveRef.current = false;
+    };
+  }, []);
+
   const pendingRequests = joinRequests.filter(
     (request) => request.status === "PENDING",
   );
 
   async function review(requestId: string, action: "approve" | "reject") {
-    if (action === "approve") {
-      await approveJoinRequest(accessToken, teamId, requestId);
-    } else {
-      await rejectJoinRequest(accessToken, teamId, requestId);
+    const request = pendingRequests.find((item) => item.id === requestId);
+    if (
+      !canManage ||
+      !request ||
+      reviewLocksRef.current.has(requestId) ||
+      refreshLockRef.current ||
+      refreshError !== null
+    ) {
+      return;
     }
 
-    await onChanged();
+    reviewLocksRef.current.add(requestId);
+    setPendingReviews((current) => ({ ...current, [requestId]: action }));
+    setReviewErrors((current) => ({ ...current, [requestId]: "" }));
+    let confirmed = false;
+
+    try {
+      const response =
+        action === "approve"
+          ? await approveJoinRequest(accessToken, teamId, requestId)
+          : await rejectJoinRequest(accessToken, teamId, requestId);
+      if (!isActiveRef.current) return;
+      confirmed = true;
+      onReviewed(response.data.joinRequest);
+    } catch (error) {
+      if (!isActiveRef.current) return;
+      setReviewErrors((current) => ({
+        ...current,
+        [requestId]: `${request.user.name}: ${getErrorMessage(error)}`,
+      }));
+    }
+
+    /* Refresh even after failure so a committed change with a lost response is reconciled. */
+    try {
+      if (!isActiveRef.current) return;
+      await onChanged();
+    } catch (error) {
+      if (!isActiveRef.current) return;
+      setRefreshError(
+        `${confirmed ? "Request updated, but" : "After this attempt,"} team details could not refresh. ${getErrorMessage(error)} Refresh before trying another action.`,
+      );
+    } finally {
+      if (isActiveRef.current) {
+        reviewLocksRef.current.delete(requestId);
+        setPendingReviews((current) => {
+          const next = { ...current };
+          delete next[requestId];
+          return next;
+        });
+      }
+    }
+  }
+
+  async function refreshRequests() {
+    if (refreshLockRef.current || reviewLocksRef.current.size > 0) return;
+    refreshLockRef.current = true;
+    setIsRefreshing(true);
+    try {
+      await onChanged();
+      if (isActiveRef.current) setRefreshError(null);
+    } catch (error) {
+      if (isActiveRef.current) setRefreshError(getErrorMessage(error));
+    } finally {
+      refreshLockRef.current = false;
+      if (isActiveRef.current) setIsRefreshing(false);
+    }
   }
 
   return (
@@ -1698,6 +2529,32 @@ function JoinRequestsPanel({
         </h3>
         <Shield className="size-5 text-slate-400" />
       </div>
+      {Object.entries(reviewErrors).map(([requestId, error]) =>
+        error ? (
+          <p
+            className="mt-3 text-sm font-medium text-rose-600"
+            key={requestId}
+            role="alert"
+          >
+            {error}
+          </p>
+        ) : null,
+      )}
+      {refreshError ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-sm font-medium text-rose-600" role="alert">
+            {refreshError}
+          </p>
+          <button
+            className="text-sm font-semibold text-emerald-700 disabled:opacity-60"
+            disabled={isRefreshing || Object.keys(pendingReviews).length > 0}
+            onClick={() => void refreshRequests()}
+            type="button"
+          >
+            {isRefreshing ? "Refreshing requests..." : "Refresh requests"}
+          </button>
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {pendingRequests.map((request) => (
           <article
@@ -1722,19 +2579,43 @@ function JoinRequestsPanel({
             {canManage ? (
               <div className="mt-3 flex flex-col gap-2 min-[360px]:flex-row">
                 <button
-                  className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800"
+                  className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+                  disabled={
+                    !!pendingReviews[request.id] ||
+                    isRefreshing ||
+                    refreshError !== null
+                  }
                   onClick={() => void review(request.id, "approve")}
                   type="button"
                 >
-                  <Check className="size-4" />
+                  {pendingReviews[request.id] === "approve" ? (
+                    <Loader2
+                      aria-label="Approving request"
+                      className="size-4 animate-spin"
+                    />
+                  ) : (
+                    <Check className="size-4" />
+                  )}
                   Approve
                 </button>
                 <button
-                  className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                  className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                  disabled={
+                    !!pendingReviews[request.id] ||
+                    isRefreshing ||
+                    refreshError !== null
+                  }
                   onClick={() => void review(request.id, "reject")}
                   type="button"
                 >
-                  <X className="size-4" />
+                  {pendingReviews[request.id] === "reject" ? (
+                    <Loader2
+                      aria-label="Rejecting request"
+                      className="size-4 animate-spin"
+                    />
+                  ) : (
+                    <X className="size-4" />
+                  )}
                   Reject
                 </button>
               </div>
@@ -1804,8 +2685,6 @@ function SelectField({
   );
 }
 
-
-
 function StatusPill({ value }: { value: string }) {
   return (
     <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
@@ -1822,7 +2701,13 @@ interface EmptyStateProps {
   title: string;
 }
 
-function EmptyState({ actionLabel, icon, onAction, text, title }: EmptyStateProps) {
+function EmptyState({
+  actionLabel,
+  icon,
+  onAction,
+  text,
+  title,
+}: EmptyStateProps) {
   return (
     <div className="flex min-h-96 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
       <div>
@@ -1852,4 +2737,19 @@ function formatEnum(value: string) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function isInviteExpired(invite: TeamInviteData, now = Date.now()) {
+  return (
+    invite.status === "EXPIRED" ||
+    (invite.status === "PENDING" &&
+      (invite.expiresAt === null ||
+        new Date(invite.expiresAt).getTime() <= now))
+  );
+}
+
+function formatInviteDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+    new Date(value),
+  );
 }

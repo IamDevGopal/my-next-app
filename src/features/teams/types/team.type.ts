@@ -72,7 +72,6 @@ export interface TeamDiscoveryData {
 
 export interface TeamDetailData extends TeamSummaryData {
   owner: PublicUserData;
-  members: TeamMemberData[];
 }
 
 export interface TeamInviteTeamData {
@@ -87,6 +86,7 @@ export interface TeamInviteData {
   message: string | null;
   status: InviteStatus;
   createdAt: string;
+  expiresAt: string | null;
   team: TeamInviteTeamData;
   inviteeUser: PublicUserData | null;
   inviter: PublicUserData;
@@ -110,7 +110,7 @@ export interface TeamResponseData {
 
 export interface TeamsResponseData {
   teams: TeamSummaryData[];
-  pageInfo?: PageInfoData;
+  pageInfo: PageInfoData;
 }
 
 export interface TeamDiscoveryResponseData {
@@ -120,6 +120,7 @@ export interface TeamDiscoveryResponseData {
 
 export interface TeamMembersResponseData {
   members: TeamMemberData[];
+  pageInfo: PageInfoData;
 }
 
 export interface TeamInviteResponseData {
@@ -128,7 +129,7 @@ export interface TeamInviteResponseData {
 
 export interface TeamInvitesResponseData {
   invites: TeamInviteData[];
-  pageInfo?: PageInfoData;
+  pageInfo: PageInfoData;
 }
 
 export interface TeamJoinRequestResponseData {
@@ -137,7 +138,7 @@ export interface TeamJoinRequestResponseData {
 
 export interface TeamJoinRequestsResponseData {
   joinRequests: TeamJoinRequestData[];
-  pageInfo?: PageInfoData;
+  pageInfo: PageInfoData;
 }
 
 export type CreateTeamPayload = CreateTeamFormValues;

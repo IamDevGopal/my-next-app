@@ -27,18 +27,24 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function response(status = 200, data = successor, errorCode = "AUTH_TOKEN_EXPIRED") {
+function response(
+  status = 200,
+  data = successor,
+  errorCode = "AUTH_TOKEN_EXPIRED",
+) {
   return new Response(
     JSON.stringify({
       success: status === 200,
       data,
-      ...(status === 200 ? {} : {
-        error: {
-          code: status === 401 ? errorCode : "AUTH_TOKEN_INVALID",
-          message: "Auth request rejected",
-          details: null,
-        },
-      }),
+      ...(status === 200
+        ? {}
+        : {
+            error: {
+              code: status === 401 ? errorCode : "AUTH_TOKEN_INVALID",
+              message: "Auth request rejected",
+              details: null,
+            },
+          }),
       meta: { statusCode: status },
     }),
     {
@@ -419,27 +425,47 @@ test("API client cannot replay an old action under a newly signed-in account", a
 
 test("business 401 never refreshes or deletes the browser login", async () => {
   let calls = 0;
-  const tab = browser().tab(async () => { calls++; return response(401, null, "AUTH_INVALID_CREDENTIALS"); });
+  const tab = browser().tab(async () => {
+    calls++;
+    return response(401, null, "AUTH_INVALID_CREDENTIALS");
+  });
   tab.storage.storeAuthTokens(original);
-  await assert.rejects(tab.client.apiRequest("/auth/security", { accessToken: original.accessToken }));
+  await assert.rejects(
+    tab.client.apiRequest("/auth/security", {
+      accessToken: original.accessToken,
+    }),
+  );
   assert.equal(calls, 1);
   assert.equal(tab.storage.getAccessToken(), original.accessToken);
 });
 
 test("temporary API failure preserves login and allows the next action", async () => {
   let calls = 0;
-  const tab = browser().tab(async () => ++calls === 1 ? response(503) : response(200, { ok: true }));
+  const tab = browser().tab(async () =>
+    ++calls === 1 ? response(503) : response(200, { ok: true }),
+  );
   tab.storage.storeAuthTokens(original);
-  await assert.rejects(tab.client.apiRequest("/users/me", { accessToken: original.accessToken }));
+  await assert.rejects(
+    tab.client.apiRequest("/users/me", { accessToken: original.accessToken }),
+  );
   assert.equal(tab.storage.getAccessToken(), original.accessToken);
-  assert.equal((await tab.client.apiRequest("/users/me", { accessToken: original.accessToken })).data.ok, true);
+  assert.equal(
+    (
+      await tab.client.apiRequest("/users/me", {
+        accessToken: original.accessToken,
+      })
+    ).data.ok,
+    true,
+  );
 });
 
 for (const code of ["AUTH_TOKEN_INVALID", "AUTH_REFRESH_TOKEN_REVOKED"]) {
   test(`${code} clears only the matching login and its cookie`, async () => {
     const tab = browser().tab(async () => response(401, null, code));
     tab.storage.storeAuthTokens(original);
-    await assert.rejects(tab.client.apiRequest("/auth/me", { accessToken: original.accessToken }));
+    await assert.rejects(
+      tab.client.apiRequest("/auth/me", { accessToken: original.accessToken }),
+    );
     assert.equal(tab.storage.getAccessToken(), null);
     assert.equal(tab.storage.getRefreshToken(), null);
     assert.match(tab.document.cookie, /tf\.session=;.*Max-Age=0/);
@@ -451,7 +477,9 @@ test("a late terminal failure cannot erase an already rotated access token", asy
   const tab = browser().tab(async () => pending.promise);
   tab.storage.storeAuthTokens(original);
   const version = tab.storage.getAuthSessionVersion();
-  const rejected = assert.rejects(tab.client.apiRequest("/auth/me", { accessToken: original.accessToken }));
+  const rejected = assert.rejects(
+    tab.client.apiRequest("/auth/me", { accessToken: original.accessToken }),
+  );
   tab.storage.storeAuthTokens(successor, { expectedSessionVersion: version });
   pending.resolve(response(401, null, "AUTH_TOKEN_INVALID"));
   await rejected;

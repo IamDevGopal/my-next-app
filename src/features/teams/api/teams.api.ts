@@ -40,7 +40,9 @@ interface TeamJoinRequestListQuery extends CursorQuery {
   status?: JoinRequestStatus;
 }
 
-function toSearchParams(query: Record<string, string | number | null | undefined>) {
+function toSearchParams(
+  query: Record<string, string | number | null | undefined>,
+) {
   const params = new URLSearchParams();
 
   Object.entries(query).forEach(([key, value]) => {
@@ -129,11 +131,20 @@ export function removeTeamAvatar(accessToken: string, teamId: string) {
   });
 }
 
-export function listTeamMembers(accessToken: string, teamId: string) {
-  return apiRequest<TeamMembersResponseData>(`/teams/${teamId}/members`, {
-    method: "GET",
-    accessToken,
-  });
+export function listTeamMembers(
+  accessToken: string,
+  teamId: string,
+  query: CursorQuery = {},
+) {
+  const params = toSearchParams({ limit: 20, ...query });
+
+  return apiRequest<TeamMembersResponseData>(
+    `/teams/${teamId}/members?${params}`,
+    {
+      method: "GET",
+      accessToken,
+    },
+  );
 }
 
 export function updateTeamMember(
@@ -166,6 +177,25 @@ export function removeTeamMember(
   );
 }
 
+export function transferTeamOwnership(
+  accessToken: string,
+  teamId: string,
+  targetMemberId: string,
+) {
+  return apiRequest<TeamResponseData>(`/teams/${teamId}/ownership-transfer`, {
+    method: "POST",
+    accessToken,
+    body: { targetMemberId },
+  });
+}
+
+export function leaveTeam(accessToken: string, teamId: string) {
+  return apiRequest<TeamMembersResponseData>(`/teams/${teamId}/membership`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
 export function createTeamInvite(
   accessToken: string,
   teamId: string,
@@ -185,10 +215,13 @@ export function listTeamInvites(
 ) {
   const params = toSearchParams({ limit: 20, ...query });
 
-  return apiRequest<TeamInvitesResponseData>(`/teams/${teamId}/invites?${params}`, {
-    method: "GET",
-    accessToken,
-  });
+  return apiRequest<TeamInvitesResponseData>(
+    `/teams/${teamId}/invites?${params}`,
+    {
+      method: "GET",
+      accessToken,
+    },
+  );
 }
 
 export function listReceivedTeamInvites(

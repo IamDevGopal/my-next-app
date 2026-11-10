@@ -13,37 +13,62 @@ const dependency = createRequire(import.meta.url);
 function load(relative, imports) {
   const filename = resolve(root, relative);
   const code = ts.transpileModule(readFileSync(filename, "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+    },
   }).outputText;
   const loaded = { exports: {} };
   const require = (name) => {
     if (Object.hasOwn(imports, name)) return imports[name];
     throw new Error(`Unexpected recovery test import: ${name}`);
   };
-  vm.runInNewContext(`(function(require, module, exports) {${code}\n})`, { URL }, { filename })(require, loaded, loaded.exports);
+  vm.runInNewContext(
+    `(function(require, module, exports) {${code}\n})`,
+    { URL },
+    { filename },
+  )(require, loaded, loaded.exports);
   return loaded.exports;
 }
 
 const next = dependency("next/server");
 const routes = load("middleware.ts", { "next/server": next });
 
-for (const path of ["/login", "/register", "/forgot-password", "/reset-password?token=test", "/verify-email?token=test", "/resend-verification"]) {
+for (const path of [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password?token=test",
+  "/verify-email?token=test",
+  "/resend-verification",
+]) {
   test(`a stale session hint never redirects public recovery route ${path}`, () => {
-    const response = routes.middleware(new next.NextRequest(`https://taskflow.test${path}`, { headers: { cookie: "tf.session=1" } }));
+    const response = routes.middleware(
+      new next.NextRequest(`https://taskflow.test${path}`, {
+        headers: { cookie: "tf.session=1" },
+      }),
+    );
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("location"), null);
   });
 }
 
 test("dashboard without the route hint redirects to sign-in and preserves its destination", () => {
-  const response = routes.middleware(new next.NextRequest("https://taskflow.test/dashboard/settings"));
+  const response = routes.middleware(
+    new next.NextRequest("https://taskflow.test/dashboard/settings"),
+  );
   const target = new URL(response.headers.get("location"));
   assert.equal(target.pathname, "/login");
   assert.equal(target.searchParams.get("next"), "/dashboard/settings");
 });
 
 test("a dashboard hint permits navigation without pretending to validate credentials", () => {
-  const response = routes.middleware(new next.NextRequest("https://taskflow.test/dashboard", { headers: { cookie: "tf.session=1" } }));
+  const response = routes.middleware(
+    new next.NextRequest("https://taskflow.test/dashboard", {
+      headers: { cookie: "tf.session=1" },
+    }),
+  );
   assert.equal(response.status, 200);
   assert.deepEqual(Array.from(routes.config.matcher), ["/dashboard/:path*"]);
 });
@@ -53,7 +78,10 @@ test("a dashboard hint permits navigation without pretending to validate credent
  * harness. This covers async ownership and effect cleanup, not browser DOM,
  * React's renderer, hydration or accessibility behavior.
  */
-function verification({ signedIn = false, token = "first-link" } = {}) {
+function verification({
+  signedIn = false,
+  token = "first-link-".repeat(4),
+} = {}) {
   const slots = [];
   const effects = [];
   let cursor = 0;
@@ -71,10 +99,17 @@ function verification({ signedIn = false, token = "first-link" } = {}) {
     useState(initial) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = initial;
-      return [slots[index], (value) => {
-        const nextValue = typeof value === "function" ? value(slots[index]) : value;
-        if (slots[index] !== nextValue) { slots[index] = nextValue; dirty = true; }
-      }];
+      return [
+        slots[index],
+        (value) => {
+          const nextValue =
+            typeof value === "function" ? value(slots[index]) : value;
+          if (slots[index] !== nextValue) {
+            slots[index] = nextValue;
+            dirty = true;
+          }
+        },
+      ];
     },
     useRef(initial) {
       const index = cursor++;
@@ -84,7 +119,10 @@ function verification({ signedIn = false, token = "first-link" } = {}) {
     useEffect(callback, dependencies) {
       const index = cursor++;
       const prior = effects[index];
-      if (!prior || dependencies.some((value, item) => value !== prior.dependencies[item])) {
+      if (
+        !prior ||
+        dependencies.some((value, item) => value !== prior.dependencies[item])
+      ) {
         pendingEffects.push(() => {
           prior?.cleanup?.();
           effects[index] = { callback, dependencies, cleanup: callback() };
@@ -92,20 +130,43 @@ function verification({ signedIn = false, token = "first-link" } = {}) {
       }
     },
   };
-  const { VerifyEmailFlow } = load("features/auth/components/verify-email-flow.tsx", {
-    react,
-    "react/jsx-runtime": { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
-    "next/navigation": { useRouter: () => router, useSearchParams: () => ({ get: () => token }) },
-    "../api/auth.api": { verifyEmail: (payload) => new Promise((resolve, reject) => requests.push({ payload, resolve, reject })) },
-    "../utils/auth-storage": {
-      getAccessToken: () => access,
-      getAuthSessionVersion: () => version,
-      storeAuthTokens: (pair) => { stored.push(pair); access = pair.accessToken; version = "verified-login"; },
+  const { VerifyEmailFlow } = load(
+    "features/auth/components/verify-email-flow.tsx",
+    {
+      react,
+      "react/jsx-runtime": {
+        jsx: (type, props) => ({ type, props }),
+        jsxs: (type, props) => ({ type, props }),
+      },
+      "next/navigation": {
+        useRouter: () => router,
+        useSearchParams: () => ({ get: () => token }),
+      },
+      "../api/auth.api": {
+        verifyEmail: (payload) =>
+          new Promise((resolve, reject) =>
+            requests.push({ payload, resolve, reject }),
+          ),
+      },
+      "../schemas/auth.schema": load("features/auth/schemas/auth.schema.ts", {
+        zod: dependency("zod"),
+      }),
+      "../utils/auth-storage": {
+        getAccessToken: () => access,
+        getAuthSessionVersion: () => version,
+        storeAuthTokens: (pair) => {
+          stored.push(pair);
+          access = pair.accessToken;
+          version = "verified-login";
+        },
+      },
+      "./auth-form-link": { AuthFormLink: "link" },
+      "./form-message": { FormMessage: "message" },
+      "@/lib/http/get-error-message": {
+        getErrorMessage: (error) => error.message,
+      },
     },
-    "./auth-form-link": { AuthFormLink: "link" },
-    "./form-message": { FormMessage: "message" },
-    "@/lib/http/get-error-message": { getErrorMessage: (error) => error.message },
-  });
+  );
   function render() {
     for (let attempt = 0; mounted && dirty && attempt < 10; attempt++) {
       dirty = false;
@@ -118,18 +179,52 @@ function verification({ signedIn = false, token = "first-link" } = {}) {
   }
   render();
   return {
-    requests, stored, redirects,
-    get tree() { return tree; },
-    confirm() { tree.props.children.find((child) => child.type === "button").props.onClick(); render(); },
-    changeLogin() { access = "newer-account"; version = "newer-login"; },
-    changeToken(value) { token = value; dirty = true; render(); },
-    replayEffects() { for (const effect of effects.filter(Boolean)) { effect.cleanup?.(); effect.cleanup = effect.callback(); } render(); },
-    unmount() { mounted = false; for (const effect of effects.filter(Boolean)) effect.cleanup?.(); },
-    async settle() { for (let index = 0; index < 6; index++) await Promise.resolve(); if (mounted) render(); },
+    requests,
+    stored,
+    redirects,
+    get tree() {
+      return tree;
+    },
+    confirm() {
+      tree.props.children
+        .find((child) => child.type === "button")
+        .props.onClick();
+      render();
+    },
+    changeLogin() {
+      access = "newer-account";
+      version = "newer-login";
+    },
+    changeToken(value) {
+      token = value;
+      dirty = true;
+      render();
+    },
+    replayEffects() {
+      for (const effect of effects.filter(Boolean)) {
+        effect.cleanup?.();
+        effect.cleanup = effect.callback();
+      }
+      render();
+    },
+    unmount() {
+      mounted = false;
+      for (const effect of effects.filter(Boolean)) effect.cleanup?.();
+    },
+    async settle() {
+      for (let index = 0; index < 6; index++) await Promise.resolve();
+      if (mounted) render();
+    },
   };
 }
 
-const success = { data: { accessToken: "verified-access", refreshToken: "verified-refresh", user: { name: "Verified user" } } };
+const success = {
+  data: {
+    accessToken: "verified-access",
+    refreshToken: "verified-refresh",
+    user: { name: "Verified user" },
+  },
+};
 
 test("signed-in verification requires confirmation before sending a single-use request", async () => {
   const flow = verification({ signedIn: true });
@@ -171,7 +266,7 @@ test("unmounted verification cannot store credentials or redirect", async () => 
 
 test("changed verification token detaches the earlier request result", async () => {
   const flow = verification();
-  flow.changeToken("second-link");
+  flow.changeToken("second-link-".repeat(4));
   assert.equal(flow.requests.length, 2);
   flow.requests[0].resolve(success);
   await flow.settle();
