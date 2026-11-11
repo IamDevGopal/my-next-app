@@ -28,12 +28,7 @@ export const TaskStatusSchema = z.enum([
   "DONE",
   "CANCELLED",
 ]);
-export const TaskPrioritySchema = z.enum([
-  "LOW",
-  "MEDIUM",
-  "HIGH",
-  "URGENT",
-]);
+export const TaskPrioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 
 export const CreateTaskFormSchema = z
   .object({
@@ -46,6 +41,22 @@ export const CreateTaskFormSchema = z
     reminderAt: optionalNullableDateTime,
   })
   .superRefine((value, context) => {
+    if (value.reminderAt && new Date(value.reminderAt).getTime() <= Date.now())
+      context.addIssue({
+        code: "custom",
+        path: ["reminderAt"],
+        message: "Choose a future reminder time.",
+      });
+    if (
+      value.reminderAt &&
+      value.dueAt &&
+      new Date(value.reminderAt) > new Date(value.dueAt)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["reminderAt"],
+        message: "Reminder cannot be later than the due time.",
+      });
     if (value.scope === "TEAM" && !value.teamId) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -65,7 +76,7 @@ export const CreateTaskFormSchema = z
     if (value.scope === "SHARED") {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Shared tasks are not enabled yet.",
+        message: "Create a personal or team task, then share it.",
         path: ["scope"],
       });
     }
@@ -73,7 +84,12 @@ export const CreateTaskFormSchema = z
 
 export const UpdateTaskFormSchema = z
   .object({
-    title: z.string().trim().min(1, "Task title is required").max(180).optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1, "Task title is required")
+      .max(180)
+      .optional(),
     description: optionalNullableString(z.string().max(5000)),
     priority: TaskPrioritySchema.optional(),
     dueAt: optionalNullableDateTime,
@@ -81,6 +97,24 @@ export const UpdateTaskFormSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Update at least one task field.",
+  })
+  .superRefine((value, context) => {
+    if (value.reminderAt && new Date(value.reminderAt).getTime() <= Date.now())
+      context.addIssue({
+        code: "custom",
+        path: ["reminderAt"],
+        message: "Choose a future reminder time.",
+      });
+    if (
+      value.reminderAt &&
+      value.dueAt &&
+      new Date(value.reminderAt) > new Date(value.dueAt)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["reminderAt"],
+        message: "Reminder cannot be later than the due time.",
+      });
   });
 
 export type CreateTaskFormValues = z.infer<typeof CreateTaskFormSchema>;

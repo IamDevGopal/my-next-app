@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/http/api-client";
+import { requestTaskApi as apiRequest } from "./task-request";
 import type {
   CreateTaskAssignmentPayload,
   CreateTaskPayload,
@@ -96,11 +96,19 @@ export function archiveTask(accessToken: string, taskId: string) {
   });
 }
 
-export function getTaskAssignments(accessToken: string, taskId: string) {
-  return apiRequest<TaskAssignmentsResponseData>(`/tasks/${taskId}/assignments`, {
-    method: "GET",
-    accessToken,
-  });
+export function getTaskAssignments(
+  accessToken: string,
+  taskId: string,
+  query: { q?: string; limit?: number; cursor?: string } = {},
+) {
+  const params = toSearchParams(query);
+  return apiRequest<TaskAssignmentsResponseData>(
+    `/tasks/${taskId}/assignments${params ? `?${params}` : ""}`,
+    {
+      method: "GET",
+      accessToken,
+    },
+  );
 }
 
 export function createTaskAssignment(
@@ -108,11 +116,14 @@ export function createTaskAssignment(
   taskId: string,
   payload: CreateTaskAssignmentPayload,
 ) {
-  return apiRequest<TaskAssignmentsResponseData>(`/tasks/${taskId}/assignments`, {
-    method: "POST",
-    accessToken,
-    body: payload,
-  });
+  return apiRequest<TaskAssignmentsResponseData>(
+    `/tasks/${taskId}/assignments`,
+    {
+      method: "POST",
+      accessToken,
+      body: payload,
+    },
+  );
 }
 
 export function deleteTaskAssignment(

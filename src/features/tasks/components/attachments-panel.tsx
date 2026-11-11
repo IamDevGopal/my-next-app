@@ -1,8 +1,8 @@
 "use client";
 
 import { Download, Loader2, Paperclip, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { env } from "@/config/env";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { downloadAttachment } from "../helpers/download-attachment.helper";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 import {
   deleteTaskAttachment,
@@ -29,19 +29,23 @@ export function AttachmentsPanel({
 }: AttachmentsPanelProps) {
   const [attachments, setAttachments] = useState<AttachmentData[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfoData | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [isLoadMore, setIsLoadMore] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const requestSequence = useRef(0);
 
   const canAttach = permissions.canAttach;
 
   useEffect(() => {
     void loadAttachments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [accessToken, taskId]);
 
   async function loadAttachments(cursor?: string | null) {
+    const requestId = ++requestSequence.current;
     if (!cursor) {
       setStatus("loading");
     } else {
@@ -55,25 +59,33 @@ export function AttachmentsPanel({
         limit: 20,
         cursor,
       });
+      if (requestId !== requestSequence.current) return;
       setAttachments((current) =>
         cursor
-          ? [...current, ...response.data.attachments]
+          ? [
+              ...current,
+              ...response.data.attachments.filter(
+                (attachment) =>
+                  !current.some((existing) => existing.id === attachment.id),
+              ),
+            ]
           : response.data.attachments,
       );
       setPageInfo(response.data.pageInfo);
       setStatus("ready");
     } catch (error) {
+      if (requestId !== requestSequence.current) return;
       setMessage(getErrorMessage(error));
       setStatus(cursor ? "ready" : "error");
     } finally {
-      setIsLoadMore(false);
+      if (requestId === requestSequence.current) setIsLoadMore(false);
     }
   }
 
   const handleUploaded = useCallback(() => {
     void loadAttachments();
     onUpdated();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [accessToken, taskId, onUpdated]);
 
   async function handleDelete(attachmentId: string) {
@@ -91,31 +103,13 @@ export function AttachmentsPanel({
 
   async function handleDownload(attachmentId: string, fileName: string) {
     try {
-      const response = await fetch(
-        `${env.NEXT_PUBLIC_API_BASE_URL}/tasks/${taskId}/attachments/${attachmentId}/download`,
-        {
-          headers: {
-            authorization: `Bearer ${accessToken}`,
-          },
-        },
+      await downloadAttachment(
+        "/tasks/" + taskId + "/attachments/" + attachmentId + "/download",
+        accessToken,
+        fileName,
       );
-
-      if (!response.ok) {
-        setMessage("Failed to download file.");
-        return;
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = fileName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
-    } catch {
-      setMessage("Failed to download file.");
+    } catch (error) {
+      setMessage(getErrorMessage(error));
     }
   }
 
@@ -128,9 +122,7 @@ export function AttachmentsPanel({
           {status === "loading" ? (
             <Loader2 className="size-3.5 animate-spin text-slate-400" />
           ) : (
-            <span className="text-xs text-slate-400">
-              {attachments.length}
-            </span>
+            <span className="text-xs text-slate-400">{attachments.length}</span>
           )}
         </div>
       </div>

@@ -26,7 +26,7 @@ export function CommentForm({
     event.preventDefault();
 
     const trimmed = body.trim();
-    if (!trimmed) {
+    if (!trimmed || isSubmitting) {
       return;
     }
 
@@ -49,6 +49,8 @@ export function CommentForm({
     <form className="flex flex-col gap-2" onSubmit={handleSubmit}>
       <div className="relative">
         <textarea
+          aria-label={isEditing ? "Edit comment" : placeholder}
+          maxLength={10000}
           className="min-h-20 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2.5 pr-10 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-400"
           disabled={isSubmitting}
           onChange={(event) => setBody(event.target.value)}
@@ -56,16 +58,14 @@ export function CommentForm({
           value={body}
         />
         <div className="absolute bottom-3 right-3 text-slate-400">
-          {isEditing ? (
-            <MessageSquarePlus className="size-4" />
-          ) : (
-            <MessageSquarePlus className="size-4" />
-          )}
+          <MessageSquarePlus className="size-4" />
         </div>
       </div>
 
       {error ? (
-        <p className="text-xs font-medium text-rose-600">{error}</p>
+        <p role="alert" className="text-xs font-medium text-rose-600">
+          {error}
+        </p>
       ) : null}
 
       <div className="flex items-center justify-end gap-2">

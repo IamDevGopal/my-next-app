@@ -1,9 +1,10 @@
 "use client";
 
-import { Bell, Check, Loader2, Trash2, X } from "lucide-react";
+import { Bell, Check, Loader2, Settings2, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useNotifications } from "../hooks/use-notifications";
+import { NotificationSettings } from "./notification-settings";
 import type { NotificationData } from "../types/notifications.type";
 
 interface NotificationBellProps {
@@ -25,9 +26,18 @@ function timeAgo(iso: string): string {
 
 export function NotificationBell({ accessToken }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { notifications, unreadCount, isLoading, markRead, markAllRead, remove } =
-    useNotifications({ accessToken });
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    error,
+    refresh,
+    markRead,
+    markAllRead,
+    remove,
+  } = useNotifications({ accessToken });
 
   // Close dropdown when clicking outside — standard popover UX.
   useEffect(() => {
@@ -70,111 +80,144 @@ export function NotificationBell({ accessToken }: NotificationBellProps) {
 
       {open ? (
         <div className="absolute right-0 top-full z-50 mt-2 w-80 origin-top-right overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg sm:w-96">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h3 className="text-sm font-semibold text-slate-950">
-              Notifications
-            </h3>
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 ? (
-                <button
-                  className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900"
-                  onClick={() => void markAllRead()}
-                  type="button"
-                >
-                  <Check className="size-3" />
-                  Mark all read
-                </button>
-              ) : null}
-              <button
-                aria-label="Close"
-                className="text-slate-400 hover:text-slate-600"
-                onClick={() => setOpen(false)}
-                type="button"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="max-h-[28rem] overflow-y-auto">
-            {isLoading && notifications.length === 0 ? (
-              <div className="flex items-center justify-center p-8">
-                <Loader2 className="size-5 animate-spin text-slate-400" />
-              </div>
-            ) : notifications.length === 0 ? (
-              <div className="p-8 text-center text-sm text-slate-500">
-                You&rsquo;re all caught up. Notifications will land here.
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {notifications.map((n) => {
-                  const isUnread = n.status === "UNREAD";
-                  const Wrapper = n.link
-                    ? ({ children }: { children: React.ReactNode }) => (
-                        <Link
-                          className="flex flex-1 items-start gap-3"
-                          href={n.link!}
-                          onClick={() => handleItemClick(n)}
-                        >
-                          {children}
-                        </Link>
-                      )
-                    : ({ children }: { children: React.ReactNode }) => (
-                        <button
-                          className="flex flex-1 items-start gap-3 text-left"
-                          onClick={() => handleItemClick(n)}
-                          type="button"
-                        >
-                          {children}
-                        </button>
-                      );
-                  return (
-                    <li
-                      className={`group flex gap-2 px-4 py-3 transition hover:bg-slate-50 ${
-                        isUnread ? "bg-emerald-50/40" : ""
-                      }`}
-                      key={n.id}
+          {settingsOpen ? (
+            <NotificationSettings
+              key={accessToken}
+              accessToken={accessToken}
+              onBack={() => setSettingsOpen(false)}
+            />
+          ) : (
+            <>
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-950">
+                  Notifications
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    aria-label="Notification settings"
+                    className="text-slate-400 hover:text-slate-700"
+                    onClick={() => setSettingsOpen(true)}
+                    type="button"
+                  >
+                    <Settings2 className="size-4" />
+                  </button>
+                  {unreadCount > 0 ? (
+                    <button
+                      className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900"
+                      onClick={() => void markAllRead()}
+                      type="button"
                     >
-                      <Wrapper>
-                        <div className="mt-1 size-2 shrink-0">
-                          {isUnread ? (
-                            <span className="inline-block size-2 rounded-full bg-emerald-600" />
-                          ) : null}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={`truncate text-sm ${
-                              isUnread
-                                ? "font-semibold text-slate-950"
-                                : "text-slate-700"
-                            }`}
+                      <Check className="size-3" />
+                      Mark all read
+                    </button>
+                  ) : null}
+                  <button
+                    aria-label="Close"
+                    className="text-slate-400 hover:text-slate-600"
+                    onClick={() => setOpen(false)}
+                    type="button"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-[28rem] overflow-y-auto">
+                {error ? (
+                  <div
+                    role="alert"
+                    className="border-b border-rose-100 bg-rose-50 p-3 text-xs text-rose-800"
+                  >
+                    {error}
+                    <button
+                      type="button"
+                      className="ml-2 font-semibold underline"
+                      onClick={() => void refresh()}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
+                {isLoading && notifications.length === 0 ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="size-5 animate-spin text-slate-400" />
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-slate-500">
+                    You&rsquo;re all caught up. Notifications will land here.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {notifications.map((n) => {
+                      const isUnread = n.status === "UNREAD";
+                      const Wrapper = n.link
+                        ? ({ children }: { children: React.ReactNode }) => (
+                            <Link
+                              className="flex flex-1 items-start gap-3"
+                              href={n.link!}
+                              onClick={() => handleItemClick(n)}
+                            >
+                              {children}
+                            </Link>
+                          )
+                        : ({ children }: { children: React.ReactNode }) => (
+                            <button
+                              className="flex flex-1 items-start gap-3 text-left"
+                              onClick={() => handleItemClick(n)}
+                              type="button"
+                            >
+                              {children}
+                            </button>
+                          );
+                      return (
+                        <li
+                          className={`group flex gap-2 px-4 py-3 transition hover:bg-slate-50 ${
+                            isUnread ? "bg-emerald-50/40" : ""
+                          }`}
+                          key={n.id}
+                        >
+                          <Wrapper>
+                            <div className="mt-1 size-2 shrink-0">
+                              {isUnread ? (
+                                <span className="inline-block size-2 rounded-full bg-emerald-600" />
+                              ) : null}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={`truncate text-sm ${
+                                  isUnread
+                                    ? "font-semibold text-slate-950"
+                                    : "text-slate-700"
+                                }`}
+                              >
+                                {n.title}
+                              </p>
+                              {n.body ? (
+                                <p className="line-clamp-2 text-xs text-slate-500">
+                                  {n.body}
+                                </p>
+                              ) : null}
+                              <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
+                                {timeAgo(n.createdAt)}
+                              </p>
+                            </div>
+                          </Wrapper>
+                          <button
+                            aria-label="Dismiss"
+                            className="invisible inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-rose-500 group-hover:visible"
+                            onClick={() => void remove(n.id)}
+                            type="button"
                           >
-                            {n.title}
-                          </p>
-                          {n.body ? (
-                            <p className="line-clamp-2 text-xs text-slate-500">
-                              {n.body}
-                            </p>
-                          ) : null}
-                          <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
-                            {timeAgo(n.createdAt)}
-                          </p>
-                        </div>
-                      </Wrapper>
-                      <button
-                        aria-label="Dismiss"
-                        className="invisible inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-rose-500 group-hover:visible"
-                        onClick={() => void remove(n.id)}
-                        type="button"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
         </div>
       ) : null}
     </div>

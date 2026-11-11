@@ -5,34 +5,24 @@ import { useRef, useState } from "react";
 import { formatFileSize } from "@/lib/format-file-size";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 import { uploadTaskAttachment } from "../api/attachments.api";
-
-const ALLOWED_TYPES = [
-  "application/pdf",
-  "text/plain",
-  "text/csv",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-];
-
-const BLOCKED_EXTENSIONS = [
-  ".exe", ".sh", ".bat", ".cmd",
-  ".js", ".mjs", ".html", ".svg",
-];
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+import {
+  validateTaskAttachment,
+  TASK_ATTACHMENT_ACCEPT,
+} from "../helpers/attachment-validation.helper";
 
 interface AttachmentUploadProps {
   accessToken: string;
   taskId: string;
   onUploaded: () => void;
   disabled?: boolean;
+  onUpload?: (file: File) => Promise<unknown>;
 }
 
 export function AttachmentUpload({
   accessToken,
   taskId,
   onUploaded,
+  onUpload,
   disabled = false,
 }: AttachmentUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,28 +31,6 @@ export function AttachmentUpload({
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  function validateFile(file: File): string | null {
-    const extension = "." + file.name.split(".").pop()?.toLowerCase();
-
-    if (BLOCKED_EXTENSIONS.includes(extension)) {
-      return `Files with "${extension}" extension are not allowed for security reasons.`;
-    }
-
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return `File type "${file.type || "unknown"}" is not supported. Allowed: PDF, TXT, CSV, PNG, JPEG, WebP.`;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return `File size exceeds the 10 MB limit.`;
-    }
-
-    if (file.size === 0) {
-      return "File is empty.";
-    }
-
-    return null;
-  }
-
   function handleFileSelect(file: File | null) {
     setError(null);
     if (!file) {
@@ -70,7 +38,7 @@ export function AttachmentUpload({
       return;
     }
 
-    const validationError = validateFile(file);
+    const validationError = validateTaskAttachment(file);
     if (validationError) {
       setError(validationError);
       setSelectedFile(null);
@@ -81,7 +49,7 @@ export function AttachmentUpload({
   }
 
   async function handleUpload() {
-    if (!selectedFile) {
+    if (!selectedFile || disabled || isUploading) {
       return;
     }
 
@@ -89,7 +57,9 @@ export function AttachmentUpload({
     setError(null);
 
     try {
-      await uploadTaskAttachment(accessToken, taskId, selectedFile);
+      await (onUpload
+        ? onUpload(selectedFile)
+        : uploadTaskAttachment(accessToken, taskId, selectedFile));
       setSelectedFile(null);
       onUploaded();
     } catch (err) {
@@ -116,9 +86,7 @@ export function AttachmentUpload({
     handleFileSelect(file ?? null);
   }
 
-  const formattedSize = selectedFile
-    ? formatFileSize(selectedFile.size)
-    : null;
+  const formattedSize = selectedFile ? formatFileSize(selectedFile.size) : null;
 
   return (
     <div className="space-y-3">
@@ -157,7 +125,7 @@ export function AttachmentUpload({
       >
         <input
           ref={fileInputRef}
-          accept=".pdf,.txt,.csv,.png,.jpg,.jpeg,.webp"
+          accept={TASK_ATTACHMENT_ACCEPT}
           className="hidden"
           disabled={disabled || isUploading}
           onChange={(event) =>
@@ -195,9 +163,7 @@ export function AttachmentUpload({
               className={`size-8 ${isDragOver ? "text-emerald-500" : "text-slate-400"}`}
             />
             <p className="mt-2 text-sm font-medium text-slate-700">
-              {isDragOver
-                ? "Drop file here"
-                : "Click to browse or drag & drop"}
+              {isDragOver ? "Drop file here" : "Click to browse or drag & drop"}
             </p>
             <p className="mt-0.5 text-xs text-slate-400">
               PDF, TXT, CSV, PNG, JPEG, WebP &middot; max 10 MB
@@ -210,7 +176,7 @@ export function AttachmentUpload({
         <div className="flex justify-end">
           <button
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={isUploading}
+            disabled={disabled || isUploading}
             onClick={handleUpload}
             type="button"
           >

@@ -2,6 +2,8 @@ export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED";
 
 export type NotificationType =
   | "TASK_ASSIGNED"
+  | "TASK_SHARED"
+  | "TASK_REMINDER"
   | "TASK_UPDATED"
   | "TASK_STATUS_CHANGED"
   | "COMMENT_ADDED"
@@ -59,11 +61,34 @@ export interface NotificationUnreadCountData {
   unreadCount: number;
 }
 
+export interface PushPublicKeyData {
+  publicKey: string;
+}
+
+export interface PushSubscriptionData {
+  id: string;
+  endpoint: string;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface PushSubscriptionsData {
+  subscriptions: PushSubscriptionData[];
+}
+
 export interface UpdatePreferenceInput {
   type: NotificationType;
   inAppEnabled?: boolean;
   emailEnabled?: boolean;
   pushEnabled?: boolean;
+}
+
+export interface PushSubscriptionInput {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
 }
 
 // Socket payloads

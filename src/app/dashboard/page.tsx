@@ -39,7 +39,13 @@ import { NotificationBell } from "@/features/notifications/components/notificati
 import { getErrorMessage } from "@/lib/http/get-error-message";
 
 type DashboardStatus = "loading" | "ready" | "error";
-type DashboardView = "teams" | "tasks" | "profile" | "people" | "chat" | "files";
+type DashboardView =
+  | "teams"
+  | "tasks"
+  | "profile"
+  | "people"
+  | "chat"
+  | "files";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -221,10 +227,7 @@ export default function DashboardPage() {
                   size="sm"
                 />
                 <div className="absolute -bottom-0.5 -right-0.5">
-                  <OnlineIndicator
-                    isOnline={isUserOnline(user.id)}
-                    size="sm"
-                  />
+                  <OnlineIndicator isOnline={isUserOnline(user.id)} size="sm" />
                 </div>
               </div>
               <div className="min-w-0 max-[360px]:hidden sm:block">
@@ -243,7 +246,9 @@ export default function DashboardPage() {
               type="button"
             >
               <LogOut className="size-4" />
-              <span className="max-[360px]:sr-only">{signingOut ? "Signing out…" : "Logout"}</span>
+              <span className="max-[360px]:sr-only">
+                {signingOut ? "Signing out…" : "Logout"}
+              </span>
             </button>
           </div>
         </aside>
@@ -257,33 +262,33 @@ export default function DashboardPage() {
                     ? "Collaboration"
                     : activeView === "tasks"
                       ? "Execution"
-                    : activeView === "profile"
-                      ? "Account"
-                      : activeView === "chat"
-                      ? "Communication"
-                      : "Network"}
+                      : activeView === "profile"
+                        ? "Account"
+                        : activeView === "chat"
+                          ? "Communication"
+                          : "Network"}
                 </p>
                 <h2 className="mt-1 text-xl font-semibold text-slate-950 sm:text-2xl">
                   {activeView === "teams"
                     ? "Teams"
                     : activeView === "tasks"
                       ? "Tasks"
-                    : activeView === "profile"
-                      ? "Profile"
-                    : activeView === "chat"
-                      ? "Messages"
-                      : "People"}
+                      : activeView === "profile"
+                        ? "Profile"
+                        : activeView === "chat"
+                          ? "Messages"
+                          : "People"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   {activeView === "teams"
                     ? "Create teams, manage members, invites, and join requests."
                     : activeView === "tasks"
                       ? "Track personal work, review team tasks, and update progress from one place."
-                    : activeView === "profile"
-                      ? "View and update your identity, contact, and public profile."
-                    : activeView === "chat"
-                      ? "Direct messages, chat requests, and team conversations."
-                      : "Search users before inviting them into teams."}
+                      : activeView === "profile"
+                        ? "View and update your identity, contact, and public profile."
+                        : activeView === "chat"
+                          ? "Direct messages, chat requests, and team conversations."
+                          : "Search users before inviting them into teams."}
                 </p>
               </div>
               <div className="flex w-full items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm sm:w-auto">
@@ -320,11 +325,19 @@ export default function DashboardPage() {
             </header>
 
             {activeView === "teams" ? (
-              <TeamsWorkspace accessToken={accessToken} currentUserId={user.id} isUserOnline={isUserOnline} />
+              <TeamsWorkspace
+                accessToken={accessToken}
+                currentUserId={user.id}
+                isUserOnline={isUserOnline}
+              />
             ) : null}
 
             {activeView === "tasks" ? (
-              <TasksWorkspace accessToken={accessToken} currentUserId={user.id} />
+              <TasksWorkspace
+                key={user.id}
+                accessToken={accessToken}
+                currentUserId={user.id}
+              />
             ) : null}
 
             {activeView === "profile" ? (

@@ -32,10 +32,18 @@ export interface TaskAssigneeData {
   assigneeUser: PublicUserData | null;
 }
 
+export interface TaskEligibleUserData {
+  id: string;
+  username: string | null;
+  name: string;
+  avatarUrl: string | null;
+}
+
 export interface TaskAssignmentsResponseData {
   taskId: string;
   assignments: TaskAssigneeData[];
-  eligibleUsers: PublicUserData[];
+  eligibleUsers: TaskEligibleUserData[];
+  eligibleUsersPageInfo: PageInfoData;
 }
 
 export interface TaskPermissionsData {

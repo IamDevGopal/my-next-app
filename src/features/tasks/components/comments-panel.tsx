@@ -1,19 +1,19 @@
 "use client";
 
-import { Loader2, MessageSquare, MessageSquareOff } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 import {
   createTaskComment,
   deleteTaskComment,
+  getTaskComment,
   listTaskComments,
   updateTaskComment,
-  type CommentData,
-  type PageInfoData,
 } from "../api/comments.api";
+import { useCommentPage } from "../hooks/use-comment-page";
+import type { CommentData } from "../types/comment.type";
 import type { TaskPermissionsData } from "../types/task.type";
 import { CommentForm } from "./comment-form";
-import { CommentItem } from "./comment-item";
+import { CommentThread } from "./comment-thread";
 
 interface CommentsPanelProps {
   accessToken: string;
@@ -21,180 +21,162 @@ interface CommentsPanelProps {
   currentUserId: string;
   permissions: TaskPermissionsData;
   teamRole: string | null;
+  onUpdated?: () => void;
 }
 
-export function CommentsPanel({
+export function CommentsPanel(props: CommentsPanelProps) {
+  return (
+    <CommentsPanelContent
+      key={props.currentUserId + ":" + props.taskId}
+      {...props}
+    />
+  );
+}
+
+function CommentsPanelContent({
   accessToken,
   taskId,
   currentUserId,
   permissions,
   teamRole,
+  onUpdated,
 }: CommentsPanelProps) {
-  const [comments, setComments] = useState<CommentData[]>([]);
-  const [pageInfo, setPageInfo] = useState<PageInfoData | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<string | null>(null);
-  const [isLoadMore, setIsLoadMore] = useState(false);
-
-  const canComment = permissions.canComment;
-  const canModerate = teamRole === "OWNER";
+  const loader = useCallback(
+    (cursor?: string | null) =>
+      listTaskComments(accessToken, taskId, { cursor, limit: 20 }),
+    [accessToken, taskId],
+  );
+  const page = useCommentPage(loader);
+  const { upsert, loading } = page;
+  const [focusedComment, setFocusedComment] = useState<CommentData | null>(
+    null,
+  );
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadComments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, taskId]);
-
-  async function loadComments(cursor?: string | null) {
-    if (!cursor) {
-      setStatus("loading");
-    } else {
-      setIsLoadMore(true);
+    if (loading) return;
+    let current = true;
+    async function openLinkedComment() {
+      const match = /^#comment-([0-9a-f-]{36})$/i.exec(window.location.hash);
+      if (!match) return;
+      try {
+        const target = (await getTaskComment(accessToken, taskId, match[1]))
+          .data.comment;
+        const root = target.parentId
+          ? (await getTaskComment(accessToken, taskId, target.parentId)).data
+              .comment
+          : target;
+        if (current) {
+          upsert(root);
+          setFocusedComment(target);
+          setLinkError(null);
+        }
+      } catch (cause) {
+        if (current) setLinkError(getErrorMessage(cause));
+      }
     }
+    void openLinkedComment();
+    window.addEventListener("hashchange", openLinkedComment);
+    return () => {
+      current = false;
+      window.removeEventListener("hashchange", openLinkedComment);
+    };
+  }, [accessToken, taskId, loading, upsert]);
 
-    setMessage(null);
-
-    try {
-      const response = await listTaskComments(accessToken, taskId, {
-        limit: 20,
-        cursor,
-      });
-      setComments((current) =>
-        cursor ? [...current, ...response.data.comments] : response.data.comments,
-      );
-      setPageInfo(response.data.pageInfo);
-      setStatus("ready");
-    } catch (error) {
-      setMessage(getErrorMessage(error));
-      setStatus(cursor ? "ready" : "error");
-    } finally {
-      setIsLoadMore(false);
-    }
+  async function create(body: string) {
+    const response = await createTaskComment(accessToken, taskId, body);
+    page.upsert(response.data.comment);
+    onUpdated?.();
+  }
+  async function update(id: string, body: string) {
+    const response = await updateTaskComment(accessToken, taskId, id, body);
+    page.upsert(response.data.comment);
+    onUpdated?.();
+  }
+  async function remove(id: string) {
+    await deleteTaskComment(accessToken, taskId, id);
+    page.remove(id);
+    onUpdated?.();
   }
 
-  const handleCreate = useCallback(
-    async (body: string) => {
-      await createTaskComment(accessToken, taskId, body);
-      await loadComments();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accessToken, taskId],
-  );
-
-  const handleUpdate = useCallback(
-    async (commentId: string, body: string) => {
-      await updateTaskComment(accessToken, taskId, commentId, body);
-      await loadComments();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accessToken, taskId],
-  );
-
-  const handleDelete = useCallback(
-    async (commentId: string) => {
-      await deleteTaskComment(accessToken, taskId, commentId);
-      await loadComments();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accessToken, taskId],
-  );
-
   return (
-    <section className="min-w-0 rounded-lg border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="size-4 text-slate-500" />
-          <h3 className="text-sm font-semibold text-slate-900">Comments</h3>
-          {status === "loading" ? (
-            <Loader2 className="size-3.5 animate-spin text-slate-400" />
-          ) : (
-            <span className="text-xs text-slate-400">
-              {comments.length}
-            </span>
-          )}
+    <section
+      className="min-w-0 space-y-4 rounded-lg border border-slate-200 bg-white p-4"
+      aria-label="Task comments"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-semibold text-slate-900">Comments</h3>
+        <button
+          type="button"
+          disabled={loading}
+          className="text-xs text-emerald-800 underline"
+          onClick={() => void page.load()}
+        >
+          Refresh comments
+        </button>
+        <span className="text-xs text-slate-500">
+          {page.comments.length} discussions loaded
+        </span>
+      </div>
+      {permissions.canComment ? (
+        <CommentForm
+          onSubmit={create}
+          placeholder="Write a comment. Mention someone with @username..."
+        />
+      ) : (
+        <p className="text-sm text-slate-500">You can read this discussion.</p>
+      )}
+      {page.error || linkError ? (
+        <div role="alert" className="space-y-2 text-sm text-rose-700">
+          <p>{page.error ?? linkError}</p>
+          <button
+            type="button"
+            disabled={loading}
+            className="underline"
+            onClick={() => void page.load()}
+          >
+            Refresh comments
+          </button>
         </div>
-      </div>
-
-      <div className="space-y-4 px-4 py-4">
-        {message ? (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-            {message}
-          </div>
-        ) : null}
-
-        {canComment ? (
-          <CommentForm
-            onSubmit={handleCreate}
-            placeholder="Write a comment..."
-          />
-        ) : (
-          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-center">
-            <MessageSquareOff className="mx-auto size-5 text-slate-400" />
-            <p className="mt-1 text-xs font-medium text-slate-500">
-              {permissions.canRead
-                ? "You can read comments but cannot add new ones."
-                : "Comments are not available for this task."}
-            </p>
-          </div>
-        )}
-
-        {status === "error" ? (
-          <div className="rounded-lg border border-dashed border-rose-200 bg-rose-50 px-4 py-6 text-center">
-            <p className="text-sm font-medium text-rose-700">
-              Could not load comments.
-            </p>
-            <button
-              className="mt-2 inline-flex h-8 items-center justify-center rounded-md border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
-              onClick={() => void loadComments()}
-              type="button"
-            >
-              Retry
-            </button>
-          </div>
-        ) : status === "ready" && comments.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
-            <MessageSquare className="mx-auto size-5 text-slate-400" />
-            <p className="mt-1 text-sm font-medium text-slate-600">
-              No comments yet
-            </p>
-            <p className="mt-0.5 text-xs text-slate-400">
-              {canComment
-                ? "Start the discussion by adding the first comment."
-                : "Comments will appear here once added."}
-            </p>
-          </div>
-        ) : null}
-
-        {status === "ready" && comments.length > 0 ? (
-          <div className="space-y-3">
-            {comments.map((comment) => (
-              <CommentItem
-                canModerate={canModerate}
-                comment={comment}
-                isOwnComment={comment.authorId === currentUserId}
-                key={comment.id}
-                onDelete={handleDelete}
-                onUpdate={handleUpdate}
-              />
-            ))}
-
-            {pageInfo?.hasNextPage ? (
-              <div className="flex justify-center pt-1">
-                <button
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-70"
-                  disabled={isLoadMore}
-                  onClick={() => void loadComments(pageInfo.nextCursor)}
-                  type="button"
-                >
-                  {isLoadMore ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : null}
-                  Load more
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
+      {loading && !page.comments.length ? (
+        <p role="status" className="text-sm text-slate-500">
+          Loading comments...
+        </p>
+      ) : null}
+      {!loading && !page.error && !page.comments.length ? (
+        <p className="text-sm text-slate-500">No comments yet.</p>
+      ) : null}
+      {focusedComment ? (
+        <p className="text-xs text-slate-500">
+          The linked discussion is included below.
+        </p>
+      ) : null}
+      {page.comments.map((comment) => (
+        <CommentThread
+          key={comment.id}
+          comment={comment}
+          accessToken={accessToken}
+          taskId={taskId}
+          currentUserId={currentUserId}
+          permissions={permissions}
+          canModerate={teamRole === "OWNER"}
+          focusedComment={focusedComment}
+          onUpdate={update}
+          onDelete={remove}
+          onUpdated={onUpdated}
+        />
+      ))}
+      {page.pageInfo.hasNextPage ? (
+        <button
+          type="button"
+          disabled={loading}
+          className="text-sm text-emerald-800 underline"
+          onClick={() => void page.load(page.pageInfo.nextCursor)}
+        >
+          {loading ? "Loading..." : "Load older discussions"}
+        </button>
+      ) : null}
     </section>
   );
 }
