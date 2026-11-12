@@ -3,6 +3,8 @@
 import { Dialog } from "@headlessui/react";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { requestApiBlob } from "@/lib/http/api-blob-client";
+import { getErrorMessage } from "@/lib/http/get-error-message";
 import type { FileRecord } from "../types/files.type";
 import { formatFileSize } from "../types/files.type";
 
@@ -12,40 +14,44 @@ interface FilePreviewProps {
   onClose: () => void;
 }
 
-export function FilePreview({
-  file,
-  accessToken,
-  onClose,
-}: FilePreviewProps) {
+export function FilePreview({ file, accessToken, onClose }: FilePreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isCurrent = true;
+    let objectUrl: string | null = null;
+    const controller = new AbortController();
+
     async function loadPreview() {
       try {
-        const response = await fetch(`/api/files/${file.id}/download`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        if (!response.ok) {
-          setError("Failed to load file");
-          return;
-        }
-
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-      } catch {
-        setError("Failed to load file");
+        const blob = await requestApiBlob(
+          `/api/v1/files/${file.id}/download`,
+          accessToken,
+          60_000,
+          controller.signal,
+        );
+        if (!isCurrent) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+      } catch (cause) {
+        if (isCurrent) setError(getErrorMessage(cause));
+      } finally {
+        if (isCurrent) setIsLoading(false);
       }
     }
 
-    loadPreview();
+    setPreviewUrl(null);
+    setError(null);
+    setIsLoading(true);
+    void loadPreview();
 
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      isCurrent = false;
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file.id, accessToken]);
 
   const isImage = file.mimeType.startsWith("image/");
@@ -53,12 +59,7 @@ export function FilePreview({
   const isText = file.mimeType.startsWith("text/");
 
   return (
-    <Dialog
-      as="div"
-      className="relative z-50"
-      onClose={onClose}
-      open
-    >
+    <Dialog as="div" className="relative z-50" onClose={onClose} open>
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
 
@@ -76,12 +77,12 @@ export function FilePreview({
               </p>
             </div>
             <a
-              className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white transition hover:bg-emerald-700"
+              aria-disabled={!previewUrl}
+              className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white transition hover:bg-emerald-700 aria-disabled:pointer-events-none aria-disabled:opacity-60"
               download={file.originalName}
-              href={previewUrl ?? "#"}
-              type="button"
+              href={previewUrl ?? undefined}
             >
-              Download
+              {isLoading ? "Loading" : "Download"}
             </a>
             <button
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700"
@@ -120,6 +121,10 @@ export function FilePreview({
                 src={previewUrl}
                 title={file.originalName}
               />
+            ) : isLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 text-sm text-neutral-500">
+                Loading preview…
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-neutral-500">
                 <div className="mb-3 flex size-16 items-center justify-center rounded-2xl bg-neutral-100 text-3xl">

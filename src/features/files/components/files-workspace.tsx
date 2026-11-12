@@ -14,6 +14,7 @@ interface FilesWorkspaceProps {
 }
 
 type LoadStatus = "loading" | "ready" | "error";
+const FILES_PAGE_SIZE = 20;
 
 // ── Component ──
 
@@ -21,34 +22,53 @@ export function FilesWorkspace({ accessToken }: FilesWorkspaceProps) {
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(FILES_PAGE_SIZE);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const loadRef = useRef(false);
+  const [loadedForToken, setLoadedForToken] = useState<string | null>(null);
+  const requestId = useRef(0);
 
   const loadFiles = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    setError(null);
+    setStatus("loading");
     try {
-      const response = await listFiles(accessToken);
+      const response = await listFiles(accessToken, {
+        page,
+        limit: FILES_PAGE_SIZE,
+      });
+      if (currentRequest !== requestId.current) return;
       setFiles(response.data.files);
+      setTotal(response.data.total);
+      setPage(response.data.page);
+      setLimit(response.data.limit);
+      setLoadedForToken(accessToken);
       setStatus("ready");
     } catch (err) {
+      if (currentRequest !== requestId.current) return;
       setError(getErrorMessage(err));
       setStatus("error");
     }
-  }, [accessToken]);
+  }, [accessToken, page]);
 
   useEffect(() => {
-    if (loadRef.current) return;
-    loadRef.current = true;
     void loadFiles();
   }, [loadFiles]);
 
   async function handleRefresh() {
     setIsRefreshing(true);
-    await loadFiles();
-    setIsRefreshing(false);
+    try {
+      await loadFiles();
+    } finally {
+      setIsRefreshing(false);
+    }
   }
 
-  function handleFileDeleted(_fileId: string) {
-    setFiles((prev) => prev.filter((f) => f.id !== _fileId));
+  function handleFileDeleted(fileId: string) {
+    setFiles((prev) => prev.filter((file) => file.id !== fileId));
+    setTotal((previous) => Math.max(0, previous - 1));
+    if (files.length === 1 && page > 1) setPage((previous) => previous - 1);
   }
 
   return (
@@ -65,7 +85,8 @@ export function FilesWorkspace({ accessToken }: FilesWorkspaceProps) {
               My files
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Read-only view of files you have attached to tasks, comments, and chat messages.
+              Browse files you have attached to tasks, comments, and chat
+              messages.
             </p>
           </div>
           <button
@@ -74,7 +95,9 @@ export function FilesWorkspace({ accessToken }: FilesWorkspaceProps) {
             onClick={handleRefresh}
             type="button"
           >
-            <RefreshCcw className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            <RefreshCcw
+              className={`size-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
             Refresh
           </button>
         </div>
@@ -93,17 +116,56 @@ export function FilesWorkspace({ accessToken }: FilesWorkspaceProps) {
       <div className="px-3 py-4 sm:px-5">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
           <FolderOpen className="size-3" />
-          All files ({files.length})
+          All files ({total})
         </div>
         <div className="mt-3">
-          <FileBrowser
-            accessToken={accessToken}
-            files={files}
-            loading={status === "loading"}
-            onFileDeleted={handleFileDeleted}
-            onRefresh={handleRefresh}
-          />
+          {status === "error" ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-sm text-slate-600">
+              <p>Files could not be loaded.</p>
+              <button
+                className="rounded-md border border-slate-300 px-3 py-2 font-medium hover:bg-slate-50"
+                onClick={handleRefresh}
+                type="button"
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <FileBrowser
+              accessToken={accessToken}
+              files={loadedForToken === accessToken ? files : []}
+              loading={status === "loading" || loadedForToken !== accessToken}
+              onFileDeleted={handleFileDeleted}
+            />
+          )}
         </div>
+        {total > limit ? (
+          <div className="mt-4 flex items-center justify-between gap-3 text-sm text-slate-600">
+            <span>
+              Page {page} of {Math.ceil(total / limit)}
+            </span>
+            <div className="flex gap-2">
+              <button
+                className="rounded-md border border-slate-300 px-3 py-2 font-medium disabled:opacity-50"
+                disabled={page <= 1 || status === "loading"}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                type="button"
+              >
+                Previous
+              </button>
+              <button
+                className="rounded-md border border-slate-300 px-3 py-2 font-medium disabled:opacity-50"
+                disabled={
+                  page >= Math.ceil(total / limit) || status === "loading"
+                }
+                onClick={() => setPage((current) => current + 1)}
+                type="button"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );

@@ -2,6 +2,7 @@
 
 import { FileIcon, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/http/get-error-message";
 import type { FileRecord } from "../types/files.type";
 import { formatFileSize, getFileColor, getFileIcon } from "../types/files.type";
 import { deleteFile } from "../api/files.api";
@@ -11,7 +12,6 @@ interface FileBrowserProps {
   files: FileRecord[];
   accessToken: string;
   onFileDeleted?: (fileId: string) => void;
-  onRefresh?: () => void;
   loading?: boolean;
 }
 
@@ -19,20 +19,20 @@ export function FileBrowser({
   files,
   accessToken,
   onFileDeleted,
-  onRefresh,
   loading = false,
 }: FileBrowserProps) {
   const [previewFile, setPreviewFile] = useState<FileRecord | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleDelete(fileId: string) {
     setDeletingId(fileId);
+    setDeleteError(null);
     try {
       await deleteFile(accessToken, fileId);
       onFileDeleted?.(fileId);
-      onRefresh?.();
-    } catch {
-      // Silently fail
+    } catch (error) {
+      setDeleteError(getErrorMessage(error));
     } finally {
       setDeletingId(null);
     }
@@ -55,14 +55,21 @@ export function FileBrowser({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-neutral-500">
         <FileIcon className="mb-3 size-12 opacity-30" />
-        <p className="text-sm font-medium">No files uploaded yet</p>
-        <p className="text-xs">Upload your first file to get started</p>
+        <p className="text-sm font-medium">No attached files on this page</p>
       </div>
     );
   }
 
   return (
     <>
+      {deleteError ? (
+        <div
+          className="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          role="alert"
+        >
+          {deleteError}
+        </div>
+      ) : null}
       <div className="space-y-1">
         {files.map((file) => (
           <div
@@ -96,37 +103,41 @@ export function FileBrowser({
             </button>
 
             {/* Actions */}
-            <button
-              className="shrink-0 rounded-lg p-2 text-neutral-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 disabled:opacity-30"
-              disabled={deletingId === file.id}
-              onClick={() => handleDelete(file.id)}
-              title="Delete file"
-              type="button"
-            >
-              {deletingId === file.id ? (
-                <svg
-                  className="size-4 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    fill="currentColor"
-                  />
-                </svg>
-              ) : (
-                <Trash2 className="size-4" />
-              )}
-            </button>
+            {!file.source ||
+            file.source.type === "direct_message" ||
+            file.source.type === "team_message" ? (
+              <button
+                className="shrink-0 rounded-lg p-2 text-neutral-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 disabled:opacity-30"
+                disabled={deletingId === file.id}
+                onClick={() => handleDelete(file.id)}
+                title="Remove attachment"
+                type="button"
+              >
+                {deletingId === file.id ? (
+                  <svg
+                    className="size-4 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+              </button>
+            ) : null}
           </div>
         ))}
       </div>

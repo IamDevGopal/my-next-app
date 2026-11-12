@@ -7,6 +7,7 @@
     "build": "next build",
     "lint:check": "eslint",
     "test:users": "node --test --test-isolation=none tests/users",
+    "test:files": "node --test --test-isolation=none tests/files",
     "test:teams": "node --test --test-isolation=none tests/teams/*.test.mjs",
     "prepare": "node .husky/install.mjs",
     "hooks:install": "node .husky/install.mjs",

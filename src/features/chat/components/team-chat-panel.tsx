@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getErrorMessage } from "@/lib/http/get-error-message";
+import { downloadApiBlob } from "@/lib/http/api-blob-client";
 import {
   listTeamChatMessages,
   sendTeamChatMessage,
@@ -79,6 +80,10 @@ export function TeamChatPanel({
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(
+    null,
+  );
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -190,7 +195,9 @@ export function TeamChatPanel({
       const res = await sendTeamChatMessage(accessToken, teamId, text);
       const data: TeamChatMessageResponseData = res.data;
       setMessages((prev) =>
-        prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message],
+        prev.some((m) => m.id === data.message.id)
+          ? prev
+          : [...prev, data.message],
       );
       setInput("");
     } catch (err) {
@@ -227,13 +234,31 @@ export function TeamChatPanel({
       const res = await uploadTeamChatAttachment(accessToken, teamId, file);
       const data: TeamChatMessageResponseData = res.data;
       setMessages((prev) =>
-        prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message],
+        prev.some((m) => m.id === data.message.id)
+          ? prev
+          : [...prev, data.message],
       );
     } catch (err) {
       console.error("Failed to upload attachment:", getErrorMessage(err));
     } finally {
       setIsSending(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleAttachmentDownload = async (
+    fileId: string,
+    downloadUrl: string,
+    fileName: string,
+  ) => {
+    setDownloadingFileId(fileId);
+    setDownloadError(null);
+    try {
+      await downloadApiBlob(downloadUrl, accessToken, fileName);
+    } catch (error) {
+      setDownloadError(getErrorMessage(error));
+    } finally {
+      setDownloadingFileId(null);
     }
   };
 
@@ -287,6 +312,14 @@ export function TeamChatPanel({
 
       {/* ── Messages Area ── */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {downloadError ? (
+          <p
+            className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+            role="alert"
+          >
+            {downloadError}
+          </p>
+        ) : null}
         {status === "loading" && (
           <div className="flex items-center justify-center py-12">
             <div className="size-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
@@ -382,11 +415,16 @@ export function TeamChatPanel({
                         {msg.attachments.length > 0 && (
                           <div className="mt-1.5 space-y-1">
                             {msg.attachments.map((att) => (
-                              <a
+                              <button
                                 key={att.id}
-                                href={att.downloadUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                disabled={downloadingFileId === att.id}
+                                onClick={() =>
+                                  void handleAttachmentDownload(
+                                    att.id,
+                                    att.downloadUrl,
+                                    att.originalName,
+                                  )
+                                }
                                 className={`flex items-center gap-2 rounded-lg p-2 text-xs transition-colors ${
                                   isMine
                                     ? "bg-emerald-700/50 hover:bg-emerald-700 text-emerald-100"
@@ -412,10 +450,16 @@ export function TeamChatPanel({
                                 <span className="shrink-0 text-[10px] opacity-70">
                                   {formatFileSize(att.sizeBytes)}
                                 </span>
-                              </a>
+                              </button>
                             ))}
                           </div>
                         )}
+                        {msg.messageType === "FILE" &&
+                        msg.attachments.length === 0 ? (
+                          <p className="text-xs opacity-70">
+                            Attachment removed
+                          </p>
+                        ) : null}
                       </>
                     )}
                   </div>

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/features/users/components/user-avatar";
 import { OnlineIndicator } from "@/features/presence/components/online-indicator";
 import { getErrorMessage } from "@/lib/http/get-error-message";
+import { downloadApiBlob } from "@/lib/http/api-blob-client";
 import {
   deleteDirectMessage,
   listDirectMessages,
@@ -83,6 +84,9 @@ export function MessageWindow({
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(
+    null,
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── WebSocket ──
@@ -282,7 +286,9 @@ export function MessageWindow({
       await deleteDirectMessage(accessToken, chatId, messageId);
       setMessages((current) =>
         current.map((msg) =>
-          msg.id === messageId ? { ...msg, deletedAt: new Date().toISOString(), body: null } : msg,
+          msg.id === messageId
+            ? { ...msg, deletedAt: new Date().toISOString(), body: null }
+            : msg,
         ),
       );
     } catch (error) {
@@ -309,6 +315,21 @@ export function MessageWindow({
     }
   }
 
+  async function handleAttachmentDownload(
+    fileId: string,
+    downloadUrl: string,
+    fileName: string,
+  ) {
+    setDownloadingFileId(fileId);
+    try {
+      await downloadApiBlob(downloadUrl, accessToken, fileName);
+    } catch (error) {
+      onError(getErrorMessage(error));
+    } finally {
+      setDownloadingFileId(null);
+    }
+  }
+
   return (
     <section className="flex min-h-136 flex-col">
       {/* Header */}
@@ -322,15 +343,18 @@ export function MessageWindow({
           <ChevronLeft className="size-5" />
         </button>
         <div className="relative">
-          <UserAvatar avatarUrl={participantAvatar} name={participantName} size="sm" />
+          <UserAvatar
+            avatarUrl={participantAvatar}
+            name={participantName}
+            size="sm"
+          />
           <div className="absolute -bottom-0.5 -right-0.5">
-            <OnlineIndicator
-              isOnline={isUserOnline(participantId)}
-              size="sm"
-            />
+            <OnlineIndicator isOnline={isUserOnline(participantId)} size="sm" />
           </div>
         </div>
-        <h3 className="truncate text-sm font-semibold text-slate-950">{participantName}</h3>
+        <h3 className="truncate text-sm font-semibold text-slate-950">
+          {participantName}
+        </h3>
       </div>
 
       {/* Messages Area */}
@@ -369,30 +393,57 @@ export function MessageWindow({
                       <p className="text-xs">This message was deleted</p>
                     ) : (
                       <>
-                        {msg.messageType === "FILE" && msg.attachments.length > 0 ? (
+                        {msg.messageType === "FILE" &&
+                        msg.attachments.length > 0 ? (
                           <div className="space-y-2">
                             {msg.attachments.map((att) => (
-                              <a
+                              <button
                                 className={`flex items-center gap-2 rounded-md p-2 text-sm transition ${
-                                  isMine ? "bg-emerald-600 hover:bg-emerald-500" : "bg-white hover:bg-slate-50"
+                                  isMine
+                                    ? "bg-emerald-600 hover:bg-emerald-500"
+                                    : "bg-white hover:bg-slate-50"
                                 }`}
-                                href={att.downloadUrl}
+                                disabled={downloadingFileId === att.id}
                                 key={att.id}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                onClick={() =>
+                                  void handleAttachmentDownload(
+                                    att.id,
+                                    att.downloadUrl,
+                                    att.originalName,
+                                  )
+                                }
+                                type="button"
                               >
                                 <FileText className="size-4 shrink-0" />
                                 <div className="min-w-0">
-                                  <p className="truncate text-xs font-medium">{att.originalName}</p>
-                                  <p className="text-xs opacity-70">{formatFileSize(att.sizeBytes)}</p>
+                                  <p className="truncate text-xs font-medium">
+                                    {att.originalName}
+                                  </p>
+                                  <p className="text-xs opacity-70">
+                                    {formatFileSize(att.sizeBytes)}
+                                  </p>
                                 </div>
-                              </a>
+                              </button>
                             ))}
                           </div>
                         ) : null}
-                        {msg.body ? <p className="whitespace-pre-wrap text-sm">{msg.body}</p> : null}
-                        <div className={`mt-1 flex items-center gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
-                          <span className={`text-[10px] ${isMine ? "text-emerald-200" : "text-slate-400"}`}>
+                        {msg.messageType === "FILE" &&
+                        msg.attachments.length === 0 ? (
+                          <p className="text-xs opacity-70">
+                            Attachment removed
+                          </p>
+                        ) : null}
+                        {msg.body ? (
+                          <p className="whitespace-pre-wrap text-sm">
+                            {msg.body}
+                          </p>
+                        ) : null}
+                        <div
+                          className={`mt-1 flex items-center gap-2 ${isMine ? "justify-end" : "justify-start"}`}
+                        >
+                          <span
+                            className={`text-[10px] ${isMine ? "text-emerald-200" : "text-slate-400"}`}
+                          >
                             {formatMessageTime(msg.createdAt)}
                           </span>
                           {isMine && !isDeleted ? (
@@ -467,7 +518,11 @@ export function MessageWindow({
             title="Send"
             type="submit"
           >
-            {isSending ? <Loader2 className="size-4 animate-spin" /> : <SendHorizonal className="size-4" />}
+            {isSending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <SendHorizonal className="size-4" />
+            )}
           </button>
         </form>
       </div>
