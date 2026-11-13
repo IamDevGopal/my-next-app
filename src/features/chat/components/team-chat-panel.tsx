@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getPublicUser } from "@/features/users/api/users.api";
 import { getErrorMessage } from "@/lib/http/get-error-message";
 import { downloadApiBlob } from "@/lib/http/api-blob-client";
 import {
@@ -15,7 +16,7 @@ import type {
   TeamChatMessagesResponseData,
   TeamChatMessageData,
 } from "../types/chat.type";
-import { useChatSocket } from "../hooks/use-chat-socket";
+import { useChatSocket, type TypingEvent } from "../hooks/use-chat-socket";
 
 // ── Helpers ──
 
@@ -86,12 +87,39 @@ export function TeamChatPanel({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
+  const [typingUserNames, setTypingUserNames] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const typingUserNamesRef = useRef(new Map<string, string>());
+  const typingNameRequestsRef = useRef(new Map<string, AbortController>());
+  const typingNameLookupAttemptsRef = useRef(new Set<string>());
+  const typingTimeoutsRef = useRef(
+    new Map<string, ReturnType<typeof setTimeout>>(),
+  );
+  const isTypingRef = useRef(false);
+  const typingEmitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // ── WebSocket ──
 
   const handleNewTeamMessage = useCallback(
     (event: { chatId: string; message: TeamChatMessageData }) => {
       if (event.chatId === teamId) {
+        if (!typingUserNamesRef.current.has(event.message.sender.id)) {
+          typingUserNamesRef.current.set(
+            event.message.sender.id,
+            event.message.sender.name,
+          );
+          setTypingUserNames((current) =>
+            new Map(current).set(
+              event.message.sender.id,
+              event.message.sender.name,
+            ),
+          );
+        }
+
         // Dedup: sender's own message arrives via HTTP + socket echo.
         setMessages((prev) => {
           if (prev.some((m) => m.id === event.message.id)) return prev;
@@ -122,13 +150,115 @@ export function TeamChatPanel({
     [teamId],
   );
 
-  const { joinTeamChat, leaveTeamChat } = useChatSocket({
+  const ensureTypingUserName = useCallback(
+    (userId: string) => {
+      if (
+        typingUserNamesRef.current.has(userId) ||
+        typingNameRequestsRef.current.has(userId) ||
+        typingNameLookupAttemptsRef.current.has(userId)
+      ) {
+        return;
+      }
+
+      const controller = new AbortController();
+      typingNameLookupAttemptsRef.current.add(userId);
+      typingNameRequestsRef.current.set(userId, controller);
+
+      void getPublicUser(accessToken, userId, controller.signal)
+        .then((response) => {
+          if (controller.signal.aborted) return;
+
+          const name = response.data.user.name;
+          typingUserNamesRef.current.set(userId, name);
+          setTypingUserNames((current) => new Map(current).set(userId, name));
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (typingNameRequestsRef.current.get(userId) === controller) {
+            typingNameRequestsRef.current.delete(userId);
+          }
+        });
+    },
+    [accessToken],
+  );
+
+  const handleTeamTyping = useCallback(
+    (event: TypingEvent) => {
+      if (event.chatId !== teamId || event.userId === currentUserId) return;
+
+      const timeouts = typingTimeoutsRef.current;
+      const previousTimeout = timeouts.get(event.userId);
+      if (previousTimeout) clearTimeout(previousTimeout);
+      timeouts.delete(event.userId);
+
+      if (!event.isTyping) {
+        setTypingUserIds((current) =>
+          current.filter((userId) => userId !== event.userId),
+        );
+        if (!typingUserNamesRef.current.has(event.userId)) {
+          typingNameLookupAttemptsRef.current.delete(event.userId);
+        }
+        return;
+      }
+
+      setTypingUserIds((current) =>
+        current.includes(event.userId) ? current : [...current, event.userId],
+      );
+      ensureTypingUserName(event.userId);
+
+      const timeout = setTimeout(() => {
+        if (timeouts.get(event.userId) !== timeout) return;
+        timeouts.delete(event.userId);
+        setTypingUserIds((current) =>
+          current.filter((userId) => userId !== event.userId),
+        );
+      }, 3_000);
+      timeouts.set(event.userId, timeout);
+    },
+    [currentUserId, ensureTypingUserName, teamId],
+  );
+
+  const { joinTeamChat, leaveTeamChat, emitTyping } = useChatSocket({
     accessToken,
     handlers: {
       onNewMessage: handleNewTeamMessage,
       onMessageDeleted: handleTeamMessageDeleted,
+      onTyping: handleTeamTyping,
     },
   });
+
+  const stopTyping = useCallback(() => {
+    if (typingEmitTimeoutRef.current !== null) {
+      clearTimeout(typingEmitTimeoutRef.current);
+      typingEmitTimeoutRef.current = null;
+    }
+
+    if (!isTypingRef.current) return;
+    isTypingRef.current = false;
+    emitTyping(teamId, "team", false);
+  }, [emitTyping, teamId]);
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setInput(value);
+
+      if (!value.trim()) {
+        stopTyping();
+        return;
+      }
+
+      if (!isTypingRef.current) {
+        isTypingRef.current = true;
+        emitTyping(teamId, "team", true);
+      }
+
+      if (typingEmitTimeoutRef.current !== null) {
+        clearTimeout(typingEmitTimeoutRef.current);
+      }
+      typingEmitTimeoutRef.current = setTimeout(stopTyping, 2_000);
+    },
+    [emitTyping, stopTyping, teamId],
+  );
 
   // Join/leave team chat room when teamId changes
   useEffect(() => {
@@ -137,9 +267,18 @@ export function TeamChatPanel({
     joinTeamChat(teamId);
 
     return () => {
+      stopTyping();
+      typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+      typingTimeoutsRef.current.clear();
+      typingNameRequestsRef.current.forEach((controller) => controller.abort());
+      typingNameRequestsRef.current.clear();
+      typingUserNamesRef.current.clear();
+      typingNameLookupAttemptsRef.current.clear();
+      setTypingUserNames(new Map());
+      setTypingUserIds([]);
       leaveTeamChat(teamId);
     };
-  }, [teamId, joinTeamChat, leaveTeamChat]);
+  }, [accessToken, teamId, joinTeamChat, leaveTeamChat, stopTyping]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -190,6 +329,7 @@ export function TeamChatPanel({
     const text = input.trim();
     if (!text || isSending) return;
 
+    stopTyping();
     setIsSending(true);
     try {
       const res = await sendTeamChatMessage(accessToken, teamId, text);
@@ -229,6 +369,7 @@ export function TeamChatPanel({
     const file = e.target.files?.[0];
     if (!file || isSending) return;
 
+    stopTyping();
     setIsSending(true);
     try {
       const res = await uploadTeamChatAttachment(accessToken, teamId, file);
@@ -490,6 +631,26 @@ export function TeamChatPanel({
         <div ref={messagesEndRef} />
       </div>
 
+      {typingUserIds.length > 0 ? (
+        <div
+          aria-live="polite"
+          className="flex items-center gap-2 border-t border-neutral-700/50 px-4 py-2 text-xs text-neutral-400"
+          role="status"
+        >
+          <div aria-hidden="true" className="flex gap-1">
+            <span className="size-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:0ms]" />
+            <span className="size-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:150ms]" />
+            <span className="size-1.5 animate-bounce rounded-full bg-neutral-400 [animation-delay:300ms]" />
+          </div>
+          <span>
+            {typingUserNames.get(typingUserIds[0]) ?? "A teammate"}
+            {typingUserIds.length === 1
+              ? " is typing..."
+              : ` and ${typingUserIds.length - 1} more are typing...`}
+          </span>
+        </div>
+      ) : null}
+
       {/* ── Input Area ── */}
       <form
         onSubmit={handleSend}
@@ -529,10 +690,11 @@ export function TeamChatPanel({
         <div className="relative flex-1">
           <input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onBlur={stopTyping}
+            onChange={(e) => handleInputChange(e.target.value)}
             placeholder="Type a message..."
             disabled={isSending}
-            className="w-full rounded-xl border border-neutral-700/50 bg-neutral-800/50 px-4 py-2.5 pr-12 text-sm text-white placeholder-neutral-500 outline-none transition-colors focus:border-emerald-500/50 focus:bg-neutral-800 disabled:opacity-50"
+            className="w-full rounded-xl border border-neutral-700/50 bg-white px-4 py-2.5 pr-12 text-sm text-neutral-950 placeholder-neutral-500 outline-none transition-colors focus:border-emerald-500/50 focus:bg-white disabled:opacity-50"
           />
           <button
             type="submit"
