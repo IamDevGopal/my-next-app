@@ -43,11 +43,14 @@ export function sendTeamChatMessage(
   teamId: string,
   body: string,
 ) {
-  return apiRequest<TeamChatMessageResponseData>(`/teams/${teamId}/chat/messages`, {
-    method: "POST",
-    accessToken,
-    body: { body },
-  });
+  return apiRequest<TeamChatMessageResponseData>(
+    `/teams/${teamId}/chat/messages`,
+    {
+      method: "POST",
+      accessToken,
+      body: { body },
+    },
+  );
 }
 
 export function deleteTeamChatMessage(
@@ -81,9 +84,12 @@ export function uploadTeamChatAttachment(
   const body = new FormData();
   body.append("file", file);
 
-  return apiRequest<TeamChatMessageResponseData>(`/teams/${teamId}/chat/attachments`, {
-    method: "POST",
-    accessToken,
-    body,
-  });
+  return apiRequest<TeamChatMessageResponseData>(
+    `/teams/${teamId}/chat/attachments`,
+    {
+      method: "POST",
+      accessToken,
+      body,
+    },
+  );
 }

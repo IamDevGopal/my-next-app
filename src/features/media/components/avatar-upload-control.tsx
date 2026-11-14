@@ -103,7 +103,9 @@ export function AvatarUploadControl({
             displayUrl ? { backgroundImage: `url("${displayUrl}")` } : undefined
           }
         >
-          {displayUrl ? null : getInitials(name) || <ImageIcon className="size-6" />}
+          {displayUrl
+            ? null
+            : getInitials(name) || <ImageIcon className="size-6" />}
         </div>
 
         <div className="flex gap-2">

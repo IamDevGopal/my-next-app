@@ -23,6 +23,4 @@ export interface ApiErrorResponse {
   meta: ApiSuccessMeta;
 }
 
-export type ApiResponse<TData> =
-  | ApiSuccessResponse<TData>
-  | ApiErrorResponse;
+export type ApiResponse<TData> = ApiSuccessResponse<TData> | ApiErrorResponse;

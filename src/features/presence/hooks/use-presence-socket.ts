@@ -28,9 +28,9 @@ export function usePresenceSocket({
   const socketRef = useRef<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
-  const presenceListenersRef = useRef<Set<(event: PresenceChangedEvent) => void>>(
-    new Set(),
-  );
+  const presenceListenersRef = useRef<
+    Set<(event: PresenceChangedEvent) => void>
+  >(new Set());
 
   useEffect(() => {
     if (!accessToken || !enabled) return;

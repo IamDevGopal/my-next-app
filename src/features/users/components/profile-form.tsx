@@ -31,7 +31,9 @@ interface ProfileFormProps {
   onUserUpdated: (user: CurrentUserData) => void;
 }
 
-function getProfileDefaultValues(user: CurrentUserData): ProfileFormInputValues {
+function getProfileDefaultValues(
+  user: CurrentUserData,
+): ProfileFormInputValues {
   return {
     name: user.name,
     username: user.username ?? "",
@@ -80,8 +82,8 @@ export function ProfileForm({
     setFormMessage(null);
     setFormMessageTone("neutral");
     const changedValues = Object.fromEntries(
-      Object.entries(values).filter(([field]) =>
-        dirtyFields[field as keyof typeof dirtyFields],
+      Object.entries(values).filter(
+        ([field]) => dirtyFields[field as keyof typeof dirtyFields],
       ),
     ) as Partial<UpdateCurrentUserFormValues>;
 
@@ -344,7 +346,8 @@ interface ProfileInputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 function ProfileInput({ error, label, ...props }: ProfileInputProps) {
-  const inputId = props.id ?? (typeof props.name === "string" ? props.name : undefined);
+  const inputId =
+    props.id ?? (typeof props.name === "string" ? props.name : undefined);
   const errorId = inputId ? `${inputId}-error` : undefined;
 
   return (
@@ -360,7 +363,11 @@ function ProfileInput({ error, label, ...props }: ProfileInputProps) {
         aria-invalid={Boolean(error)}
       />
       {error ? (
-        <p className="text-xs font-medium text-rose-600" id={errorId} role="alert">
+        <p
+          className="text-xs font-medium text-rose-600"
+          id={errorId}
+          role="alert"
+        >
           {error}
         </p>
       ) : null}

@@ -16,9 +16,8 @@ const SESSION_FLAG_COOKIE = "tf.session";
 export const ACCESS_TOKEN_ROTATED_EVENT = "taskflow:access-token-rotated";
 
 function createSessionVersion(): string {
-  return Array.from(
-    window.crypto.getRandomValues(new Uint8Array(16)),
-    (byte) => byte.toString(16).padStart(2, "0"),
+  return Array.from(window.crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
   ).join("");
 }
 
@@ -112,7 +111,8 @@ export function clearAuthTokensIfCurrent(
   accessToken?: string,
 ): boolean {
   if (getAuthSessionVersion() !== sessionVersion) return false;
-  if (accessToken !== undefined && getAccessToken() !== accessToken) return false;
+  if (accessToken !== undefined && getAccessToken() !== accessToken)
+    return false;
   clearAuthTokens();
   return true;
 }

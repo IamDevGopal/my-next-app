@@ -16,7 +16,10 @@ interface UserBlocksPanelProps {
 
 // ── Component ──
 
-export function UserBlocksPanel({ accessToken, onError }: UserBlocksPanelProps) {
+export function UserBlocksPanel({
+  accessToken,
+  onError,
+}: UserBlocksPanelProps) {
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
@@ -48,7 +51,9 @@ export function UserBlocksPanel({ accessToken, onError }: UserBlocksPanelProps) 
 
     try {
       await unblockUser(accessToken, userId);
-      setBlockedUsers((current) => current.filter((b) => b.blockedUser.id !== userId));
+      setBlockedUsers((current) =>
+        current.filter((b) => b.blockedUser.id !== userId),
+      );
     } catch (error) {
       onError(getErrorMessage(error));
     } finally {
@@ -59,7 +64,9 @@ export function UserBlocksPanel({ accessToken, onError }: UserBlocksPanelProps) 
   return (
     <section className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-slate-950">Blocked Users</h3>
+        <h3 className="text-base font-semibold text-slate-950">
+          Blocked Users
+        </h3>
         <ShieldOff className="size-5 text-slate-400" />
       </div>
       <div className="mt-4 space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -70,7 +77,9 @@ export function UserBlocksPanel({ accessToken, onError }: UserBlocksPanelProps) 
         ) : blockedUsers.length === 0 ? (
           <div className="rounded-md border border-dashed border-slate-200 p-4 text-center">
             <Shield className="mx-auto size-8 text-slate-300" />
-            <p className="mt-2 text-sm font-medium text-slate-500">No blocked users</p>
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              No blocked users
+            </p>
             <p className="mt-0.5 text-xs text-slate-400">
               Blocked users cannot send you chat requests or messages.
             </p>
@@ -92,7 +101,9 @@ export function UserBlocksPanel({ accessToken, onError }: UserBlocksPanelProps) 
                     {block.blockedUser.name}
                   </p>
                   {block.reason ? (
-                    <p className="truncate text-[10px] text-slate-500">{block.reason}</p>
+                    <p className="truncate text-[10px] text-slate-500">
+                      {block.reason}
+                    </p>
                   ) : null}
                 </div>
               </div>

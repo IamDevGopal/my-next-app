@@ -1,6 +1,7 @@
 "type: docs":
   - changed-files:
-      - any-glob-to-any-file: ["README.md", ".github/**/*.md", ".github/**/*.yml"]
+      - any-glob-to-any-file:
+          ["README.md", ".github/**/*.md", ".github/**/*.yml"]
 
 "type: frontend":
   - changed-files:

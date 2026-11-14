@@ -106,8 +106,8 @@ export function ActiveSessionsPanel() {
             Active sessions
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Devices currently signed in to your account. Revoking a session
-            ends access from that device immediately.
+            Devices currently signed in to your account. Revoking a session ends
+            access from that device immediately.
           </p>
         </div>
         <button

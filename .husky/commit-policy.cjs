@@ -1,26 +1,26 @@
 const icons = Object.freeze({
-  feat: '✨',
-  fix: '🐛',
-  docs: '📝',
-  style: '🎨',
-  refactor: '♻️',
-  perf: '⚡',
-  test: '✅',
-  chore: '🧹',
-  ci: '⚙️',
-  build: '🏗️',
-  revert: '⏪',
+  feat: "✨",
+  fix: "🐛",
+  docs: "📝",
+  style: "🎨",
+  refactor: "♻️",
+  perf: "⚡",
+  test: "✅",
+  chore: "🧹",
+  ci: "⚙️",
+  build: "🏗️",
+  revert: "⏪",
 });
 const aliases = Object.freeze({
-  feature: 'feat',
-  bug: 'fix',
-  bugfix: 'fix',
-  hotfix: 'fix',
-  doc: 'docs',
-  documentation: 'docs',
-  performance: 'perf',
-  tests: 'test',
-  maintenance: 'chore',
+  feature: "feat",
+  bug: "fix",
+  bugfix: "fix",
+  hotfix: "fix",
+  doc: "docs",
+  documentation: "docs",
+  performance: "perf",
+  tests: "test",
+  maintenance: "chore",
 });
 const conventional =
   /^([a-z][a-z0-9-]*)(?:\(([^()\r\n]+)\))?(!)?:[ \t]*(\S.*)$/i;
@@ -42,10 +42,10 @@ function isGitMessage(header) {
   );
 }
 
-function headerLocation(message, comment = '#') {
+function headerLocation(message, comment = "#") {
   let offset = 0;
   for (const line of message.split(/(?<=\n)/)) {
-    const text = line.replace(/\r?\n$/, '').replace(/^\uFEFF/, '');
+    const text = line.replace(/\r?\n$/, "").replace(/^\uFEFF/, "");
     if (
       text === `${comment} ------------------------ >8 ------------------------`
     )
@@ -53,7 +53,7 @@ function headerLocation(message, comment = '#') {
     if (text.trim() && !text.startsWith(comment)) {
       return {
         offset,
-        length: line.replace(/\r?\n$/, '').length,
+        length: line.replace(/\r?\n$/, "").length,
         header: text,
       };
     }
@@ -62,15 +62,15 @@ function headerLocation(message, comment = '#') {
   return null;
 }
 
-function normalizeMessage(message, { branch = '', comment = '#' } = {}) {
+function normalizeMessage(message, { branch = "", comment = "#" } = {}) {
   const location = headerLocation(message, comment);
   if (!location || isGitMessage(location.header)) return message;
-  const header = location.header.trim().replace(emojiPrefix, '');
+  const header = location.header.trim().replace(emojiPrefix, "");
   let match = conventional.exec(header);
   if (!match && /^Revert ".+"$/.test(header)) {
     match = [
       header,
-      'revert',
+      "revert",
       undefined,
       undefined,
       `revert ${header.slice(7)}`,
@@ -85,17 +85,17 @@ function normalizeMessage(message, { branch = '', comment = '#' } = {}) {
     // Unknown explicit types must fail validation, never become a different branch-inferred type.
     if (!type) return message;
     scope = match[2]?.toLowerCase();
-    breaking = match[3] ?? '';
+    breaking = match[3] ?? "";
     subject = match[4].trimEnd();
   } else {
     // Preserve branch fallback, but do not invent a scope from truncated branch text.
-    type = canonicalType(branch.match(/^([a-z]+)[/-]/i)?.[1] ?? '');
+    type = canonicalType(branch.match(/^([a-z]+)[/-]/i)?.[1] ?? "");
     if (!type || /^[a-z][a-z0-9-]*(?:\([^\r\n]*\))?!?:/i.test(header))
       return message;
-    breaking = '';
+    breaking = "";
     subject = header;
   }
-  const normalized = `${icons[type]} ${type}${scope ? `(${scope})` : ''}${breaking}: ${subject}`;
+  const normalized = `${icons[type]} ${type}${scope ? `(${scope})` : ""}${breaking}: ${subject}`;
   return (
     message.slice(0, location.offset) +
     normalized +
@@ -105,7 +105,7 @@ function normalizeMessage(message, { branch = '', comment = '#' } = {}) {
 
 function hasCanonicalIcon(header) {
   const match = /^(\S+) ([a-z]+)(?:\([^()\r\n]+\))?!?: \S.*$/.exec(
-    header ?? '',
+    header ?? "",
   );
   return Boolean(
     match && Object.hasOwn(icons, match[2]) && icons[match[2]] === match[1],
@@ -113,54 +113,54 @@ function hasCanonicalIcon(header) {
 }
 
 function validateHeader(header) {
-  if (isGitMessage(header ?? '')) return [true, ''];
+  if (isGitMessage(header ?? "")) return [true, ""];
   if (!hasCanonicalIcon(header))
     return [
       false,
-      'write a type and summary, e.g. feat(auth): add login; the hook adds its matching icon automatically',
+      "write a type and summary, e.g. feat(auth): add login; the hook adds its matching icon automatically",
     ];
   const match = /^(\S+) ([a-z]+)(?:\(([^()\r\n]+)\))?!?: (\S.*)$/.exec(header);
   if (match[3] && match[3] !== match[3].toLowerCase())
-    return [false, 'scope must be lowercase'];
+    return [false, "scope must be lowercase"];
   if (header !== header.trim())
-    return [false, 'header must not have leading or trailing whitespace'];
-  if (match[4].endsWith('.'))
-    return [false, 'summary must not end with a period'];
-  return [true, ''];
+    return [false, "header must not have leading or trailing whitespace"];
+  if (match[4].endsWith("."))
+    return [false, "summary must not end with a period"];
+  return [true, ""];
 }
 
 function commitlintConfig() {
   return {
-    extends: ['@commitlint/config-conventional'],
+    extends: ["@commitlint/config-conventional"],
     defaultIgnores: false,
     ignores: [(message) => isGitMessage(message.split(/\r?\n/, 1)[0])],
     parserPreset: {
       parserOpts: {
         headerPattern: /^(?:\S+ )?([a-z]+)(?:\(([^()]+)\))?!?: (.+)$/,
-        headerCorrespondence: ['type', 'scope', 'subject'],
+        headerCorrespondence: ["type", "scope", "subject"],
         breakingHeaderPattern: /^(?:\S+ )?([a-z]+)(?:\(([^()]+)\))?!: (.+)$/,
       },
     },
     plugins: [
       {
         rules: {
-          'canonical-icon': (parsed) => validateHeader(parsed.header),
+          "canonical-icon": (parsed) => validateHeader(parsed.header),
         },
       },
     ],
     rules: {
-      'canonical-icon': [2, 'always'],
-      'type-enum': [2, 'always', Object.keys(icons)],
-      'type-case': [2, 'always', 'lower-case'],
-      'type-empty': [2, 'never'],
-      'scope-case': [2, 'always', 'lower-case'],
-      'subject-empty': [2, 'never'],
+      "canonical-icon": [2, "always"],
+      "type-enum": [2, "always", Object.keys(icons)],
+      "type-case": [2, "always", "lower-case"],
+      "type-empty": [2, "never"],
+      "scope-case": [2, "always", "lower-case"],
+      "subject-empty": [2, "never"],
       // Preserve Copilot/user acronyms and code identifiers rather than changing the subject.
-      'subject-case': [0],
-      'subject-full-stop': [2, 'never', '.'],
-      'header-max-length': [0],
-      'body-max-line-length': [0],
-      'footer-max-line-length': [0],
+      "subject-case": [0],
+      "subject-full-stop": [2, "never", "."],
+      "header-max-length": [0],
+      "body-max-line-length": [0],
+      "footer-max-line-length": [0],
     },
   };
 }

@@ -81,7 +81,10 @@ async function executeRequest<TData>(
   alreadyRetried: boolean,
   sessionVersion?: string,
 ): Promise<ApiSuccessResponse<TData>> {
-  if (sessionVersion !== undefined && getAuthSessionVersion() !== sessionVersion) {
+  if (
+    sessionVersion !== undefined &&
+    getAuthSessionVersion() !== sessionVersion
+  ) {
     throw new Error("The signed-in account changed. Please retry your action.");
   }
   const isFormData = options.body instanceof FormData;
@@ -112,8 +115,13 @@ async function executeRequest<TData>(
     }
 
     const payload = (await response.json()) as ApiResponse<TData>;
-    if (sessionVersion !== undefined && getAuthSessionVersion() !== sessionVersion) {
-      throw new Error("The signed-in account changed. Please retry your action.");
+    if (
+      sessionVersion !== undefined &&
+      getAuthSessionVersion() !== sessionVersion
+    ) {
+      throw new Error(
+        "The signed-in account changed. Please retry your action.",
+      );
     }
 
     if (!payload.success) {
@@ -130,7 +138,10 @@ async function executeRequest<TData>(
         !options.skipAuthRefresh &&
         !alreadyRetried
       ) {
-        const fresh = await refreshAccessToken(options.accessToken, sessionVersion);
+        const fresh = await refreshAccessToken(
+          options.accessToken,
+          sessionVersion,
+        );
         if (fresh) {
           return executeRequest<TData>(
             path,

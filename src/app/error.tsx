@@ -23,12 +23,15 @@ export default function Error({
 }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-slate-100 px-4 text-center">
-      <p className="text-sm font-semibold text-rose-700">Something went wrong</p>
+      <p className="text-sm font-semibold text-rose-700">
+        Something went wrong
+      </p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
         We hit an unexpected error
       </h1>
       <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-        {error.message || "Please try again. If the problem persists, sign in again."}
+        {error.message ||
+          "Please try again. If the problem persists, sign in again."}
       </p>
       <div className="mt-6 flex items-center gap-3">
         <button

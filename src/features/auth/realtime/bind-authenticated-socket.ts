@@ -1,6 +1,11 @@
 import type { Socket } from "socket.io-client";
 import { refreshAccessToken } from "../api/refresh-session";
-import { clearAuthTokens, getAccessToken, getAuthSessionVersion, subscribeToAuthTokenChanges } from "../utils/auth-storage";
+import {
+  clearAuthTokens,
+  getAccessToken,
+  getAuthSessionVersion,
+  subscribeToAuthTokenChanges,
+} from "../utils/auth-storage";
 import { AUTH_SOCKET, authSocketEndedSchema } from "./auth-socket.contract";
 
 /**
@@ -8,7 +13,10 @@ import { AUTH_SOCKET, authSocketEndedSchema } from "./auth-socket.contract";
  * pages without dashboard state. Events from an earlier login must never
  * clear or reconnect a different account's session.
  */
-export function bindAuthenticatedSocket(socket: Socket, initialToken: string): () => void {
+export function bindAuthenticatedSocket(
+  socket: Socket,
+  initialToken: string,
+): () => void {
   if (getAccessToken() !== initialToken) {
     socket.disconnect();
     return () => {};
@@ -19,10 +27,19 @@ export function bindAuthenticatedSocket(socket: Socket, initialToken: string): (
   let refreshing = false;
   let retryTimer: number | undefined;
   const retryConnection = () => {
-    if (disposed || getAuthSessionVersion() !== version || getAccessToken() !== token) return;
+    if (
+      disposed ||
+      getAuthSessionVersion() !== version ||
+      getAccessToken() !== token
+    )
+      return;
     window.clearTimeout(retryTimer);
     retryTimer = window.setTimeout(() => {
-      if (!disposed && getAuthSessionVersion() === version && getAccessToken() === token) {
+      if (
+        !disposed &&
+        getAuthSessionVersion() === version &&
+        getAccessToken() === token
+      ) {
         socket.auth = { token: `Bearer ${token}` };
         socket.connect();
       }
@@ -56,19 +73,29 @@ export function bindAuthenticatedSocket(socket: Socket, initialToken: string): (
     }
     if (reason !== AUTH_SOCKET.END_REASON.EXPIRED || refreshing) return;
     refreshing = true;
-    void refreshAccessToken(token, version).then((fresh) => {
-      if (!disposed && fresh && getAuthSessionVersion() === version && getAccessToken() === fresh) {
-        token = fresh;
-        socket.auth = { token: `Bearer ${fresh}` };
-        socket.connect();
-      }
-    }).catch(() => {
-      /**
-       * Network/server failures retain recoverable credentials. A later
-       * page/API request can retry through the normal authentication path.
-       */
-      retryConnection();
-    }).finally(() => { refreshing = false; });
+    void refreshAccessToken(token, version)
+      .then((fresh) => {
+        if (
+          !disposed &&
+          fresh &&
+          getAuthSessionVersion() === version &&
+          getAccessToken() === fresh
+        ) {
+          token = fresh;
+          socket.auth = { token: `Bearer ${fresh}` };
+          socket.connect();
+        }
+      })
+      .catch(() => {
+        /**
+         * Network/server failures retain recoverable credentials. A later
+         * page/API request can retry through the normal authentication path.
+         */
+        retryConnection();
+      })
+      .finally(() => {
+        refreshing = false;
+      });
   };
   socket.on(AUTH_SOCKET.ENDED_EVENT, ended);
   return () => {

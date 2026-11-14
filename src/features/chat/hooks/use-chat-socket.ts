@@ -63,10 +63,7 @@ interface UseChatSocketOptions {
 
 // ── Hook ──
 
-export function useChatSocket({
-  accessToken,
-  handlers,
-}: UseChatSocketOptions) {
+export function useChatSocket({ accessToken, handlers }: UseChatSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
   const handlersRef = useRef(handlers);
   const activeRoomsRef = useRef<Map<string, ActiveRoom>>(new Map());

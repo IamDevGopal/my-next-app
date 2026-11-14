@@ -89,10 +89,7 @@ export function cancelChatRequest(accessToken: string, requestId: string) {
 
 // ── Direct Chats API ──
 
-export function listDirectChats(
-  accessToken: string,
-  query: CursorQuery = {},
-) {
+export function listDirectChats(accessToken: string, query: CursorQuery = {}) {
   const params = toSearchParams({ limit: 20, ...query });
 
   return apiRequest<DirectChatsResponseData>(`/direct-chats?${params}`, {
@@ -106,10 +103,11 @@ export function sendDirectMessage(
   chatId: string,
   body: string,
 ) {
-  return apiRequest<MessageResponseData>(
-    `/direct-chats/${chatId}/messages`,
-    { method: "POST", accessToken, body: { body } },
-  );
+  return apiRequest<MessageResponseData>(`/direct-chats/${chatId}/messages`, {
+    method: "POST",
+    accessToken,
+    body: { body },
+  });
 }
 
 export function listDirectMessages(

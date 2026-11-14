@@ -2,10 +2,15 @@
   "name": "thenext",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "lint:check": "eslint",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,json,md}\" \"tests/**/*.{ts,tsx,js,jsx,mjs,json,md}\" \"*.{json,md,mjs,ts}\" \".github/**/*.{yml,yaml,md}\" \".husky/*.{cjs,sh}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,json,md}\" \"tests/**/*.{ts,tsx,js,jsx,mjs,json,md}\" \"*.{json,md,mjs,ts}\" \".github/**/*.{yml,yaml,md}\" \".husky/*.{cjs,sh}\"",
     "test:users": "node --test --test-isolation=none tests/users",
     "test:files": "node --test --test-isolation=none tests/files",
     "test:teams": "node --test --test-isolation=none tests/teams/*.test.mjs",
@@ -13,9 +18,9 @@
     "hooks:install": "node .husky/install.mjs",
     "hooks:check": "node .husky/commit-message.cjs doctor",
     "test:commits": "node --test .husky/commit-message.test.cjs",
-    "start": "next start",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --incremental false"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint --fix",

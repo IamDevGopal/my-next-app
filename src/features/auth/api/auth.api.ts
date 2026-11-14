@@ -143,11 +143,15 @@ async function securityRequest(
         signal: controller.signal,
       });
       if (!response.headers.get("content-type")?.includes("application/json")) {
-        throw new Error("The server returned an invalid response. Please retry.");
+        throw new Error(
+          "The server returned an invalid response. Please retry.",
+        );
       }
       const parsed = securityResponseSchema.safeParse(await response.json());
       if (!parsed.success) {
-        throw new Error("The server returned an invalid response. Please retry.");
+        throw new Error(
+          "The server returned an invalid response. Please retry.",
+        );
       }
       const payload = parsed.data;
       if (payload.success && response.ok) return { message: payload.message };

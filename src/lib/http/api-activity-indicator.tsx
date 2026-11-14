@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  getActiveApiRequestCount,
-  subscribeToApiActivity,
-} from "./api-client";
+import { getActiveApiRequestCount, subscribeToApiActivity } from "./api-client";
 
 export function ApiActivityIndicator() {
-  const [activeRequests, setActiveRequests] = useState(getActiveApiRequestCount);
+  const [activeRequests, setActiveRequests] = useState(
+    getActiveApiRequestCount,
+  );
 
   useEffect(() => {
     return subscribeToApiActivity(setActiveRequests);

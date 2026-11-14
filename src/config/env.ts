@@ -1,12 +1,9 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  NEXT_PUBLIC_APP_NAME: z.string().min(1).default('TaskFlow'),
-  NEXT_PUBLIC_API_BASE_URL: z
-    .string()
-    .url()
-    .default('http://localhost:5000/api/v1'),
-  NEXT_PUBLIC_WS_URL: z.string().url().default('http://localhost:5000'),
+  NEXT_PUBLIC_APP_NAME: z.string().min(1),
+  NEXT_PUBLIC_API_BASE_URL: z.string().url(),
+  NEXT_PUBLIC_WS_URL: z.string().url(),
 });
 
 const parsedEnv = envSchema.safeParse({

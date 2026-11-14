@@ -22,7 +22,11 @@ type ActiveView = "list" | "chat";
 
 // ── Component ──
 
-export function ChatWorkspace({ accessToken, currentUserId, isUserOnline }: ChatWorkspaceProps) {
+export function ChatWorkspace({
+  accessToken,
+  currentUserId,
+  isUserOnline,
+}: ChatWorkspaceProps) {
   const [chats, setChats] = useState<DirectChatSummaryData[]>([]);
   const [pageInfo, setPageInfo] = useState<PageInfoData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,7 +55,9 @@ export function ChatWorkspace({ accessToken, currentUserId, isUserOnline }: Chat
         limit: 20,
       });
       setChats((current) =>
-        params.append ? [...current, ...response.data.chats] : response.data.chats,
+        params.append
+          ? [...current, ...response.data.chats]
+          : response.data.chats,
       );
       setPageInfo(response.data.pageInfo ?? null);
     } catch (error) {
@@ -86,11 +92,13 @@ export function ChatWorkspace({ accessToken, currentUserId, isUserOnline }: Chat
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
               <MessageSquare className="size-4" />
-              {selectedChatId && activeView === "chat" ? "Direct Chat" : "Messages"}
+              {selectedChatId && activeView === "chat"
+                ? "Direct Chat"
+                : "Messages"}
             </div>
             <h2 className="mt-1 text-xl font-semibold text-slate-950">
               {selectedChatId && activeView === "chat"
-                ? selectedChat?.participant.name ?? "Chat"
+                ? (selectedChat?.participant.name ?? "Chat")
                 : "Connect & Collaborate"}
             </h2>
           </div>
@@ -119,7 +127,9 @@ export function ChatWorkspace({ accessToken, currentUserId, isUserOnline }: Chat
       ) : null}
 
       {/* Desktop: Grid layout */}
-      <div className={`${activeView === "chat" ? "hidden lg:grid" : "grid"} min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_2fr]`}>
+      <div
+        className={`${activeView === "chat" ? "hidden lg:grid" : "grid"} min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_2fr]`}
+      >
         {/* Left Sidebar */}
         <aside className="min-w-0 space-y-4 border-r border-slate-200 p-3 sm:p-4">
           <DirectChatList
@@ -144,13 +154,14 @@ export function ChatWorkspace({ accessToken, currentUserId, isUserOnline }: Chat
             <MessageWindow
               accessToken={accessToken}
               chatId={selectedChat.id}
-              currentUserId={currentUserId}            participantName={selectedChat.participant.name}
-            participantAvatar={selectedChat.participant.avatarUrl}
-            participantId={selectedChat.participant.id}
-            isUserOnline={isUserOnline}
-            onBack={handleBack}
-            onError={setMessage}
-          />
+              currentUserId={currentUserId}
+              participantName={selectedChat.participant.name}
+              participantAvatar={selectedChat.participant.avatarUrl}
+              participantId={selectedChat.participant.id}
+              isUserOnline={isUserOnline}
+              onBack={handleBack}
+              onError={setMessage}
+            />
           ) : (
             <div className="flex min-h-136 items-center justify-center p-6">
               <div className="text-center">
@@ -161,7 +172,8 @@ export function ChatWorkspace({ accessToken, currentUserId, isUserOnline }: Chat
                   Select a conversation
                 </h3>
                 <p className="mt-2 max-w-sm text-sm text-slate-500">
-                  Choose a chat from the left to view messages, or send a new chat request to start a conversation.
+                  Choose a chat from the left to view messages, or send a new
+                  chat request to start a conversation.
                 </p>
               </div>
             </div>

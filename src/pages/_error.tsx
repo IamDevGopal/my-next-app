@@ -36,10 +36,14 @@ export default function Error({ statusCode }: { statusCode?: number }) {
         <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "#be123c" }}>
           {statusCode ?? "Error"}
         </p>
-        <h1 style={{ marginTop: "0.5rem", fontSize: "1.875rem", color: "#020617" }}>
-          {statusCode === 404
-            ? "Page not found"
-            : "Something went wrong"}
+        <h1
+          style={{
+            marginTop: "0.5rem",
+            fontSize: "1.875rem",
+            color: "#020617",
+          }}
+        >
+          {statusCode === 404 ? "Page not found" : "Something went wrong"}
         </h1>
         <a
           href="/login"
@@ -62,7 +66,13 @@ export default function Error({ statusCode }: { statusCode?: number }) {
   );
 }
 
-Error.getInitialProps = ({ res, err }: { res?: { statusCode?: number }; err?: { statusCode?: number } }) => {
+Error.getInitialProps = ({
+  res,
+  err,
+}: {
+  res?: { statusCode?: number };
+  err?: { statusCode?: number };
+}) => {
   const statusCode = res?.statusCode ?? err?.statusCode ?? 404;
   return { statusCode };
 };

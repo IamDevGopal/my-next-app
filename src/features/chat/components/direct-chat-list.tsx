@@ -37,7 +37,13 @@ function formatTime(dateStr: string): string {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-function getPreview(msg: { body: string | null; messageType: string; attachments?: unknown[] } | null): string {
+function getPreview(
+  msg: {
+    body: string | null;
+    messageType: string;
+    attachments?: unknown[];
+  } | null,
+): string {
   if (!msg) return "No messages yet";
   if (msg.body) return msg.body;
   if (msg.messageType === "FILE") return "📎 File";
@@ -60,7 +66,9 @@ export function DirectChatList({
   return (
     <section className="min-w-0">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-950">Direct Messages</h3>
+        <h3 className="text-sm font-semibold text-slate-950">
+          Direct Messages
+        </h3>
         <button
           className="inline-flex size-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
           disabled={isLoading || isRequestsLoading}
@@ -68,7 +76,9 @@ export function DirectChatList({
           title="Refresh"
           type="button"
         >
-          <RefreshCcw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
+          <RefreshCcw
+            className={`size-3.5 ${isLoading ? "animate-spin" : ""}`}
+          />
         </button>
       </div>
 
@@ -76,7 +86,9 @@ export function DirectChatList({
         {chats.length === 0 && !isLoading ? (
           <div className="rounded-md border border-dashed border-slate-200 p-4 text-center">
             <MessageCircle className="mx-auto size-8 text-slate-300" />
-            <p className="mt-2 text-sm font-medium text-slate-500">No conversations yet</p>
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              No conversations yet
+            </p>
             <p className="mt-0.5 text-xs text-slate-400">
               Use chat requests above to start a conversation.
             </p>

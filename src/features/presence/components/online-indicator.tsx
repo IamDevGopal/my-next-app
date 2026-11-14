@@ -35,7 +35,11 @@ export function OnlineIndicator({
   size = "sm",
   showLabel = false,
 }: OnlineIndicatorProps) {
-  const displayStatus = isOnline ? (status === "OFFLINE" ? "ONLINE" : status) : "OFFLINE";
+  const displayStatus = isOnline
+    ? status === "OFFLINE"
+      ? "ONLINE"
+      : status
+    : "OFFLINE";
 
   return (
     <span
@@ -44,9 +48,7 @@ export function OnlineIndicator({
     >
       <span
         className={`inline-block rounded-full ${SIZE_MAP[size]} ring-white ${STATUS_COLORS[displayStatus]} ${
-          displayStatus === "ONLINE"
-            ? "animate-pulse"
-            : ""
+          displayStatus === "ONLINE" ? "animate-pulse" : ""
         }`}
       />
       {showLabel && (

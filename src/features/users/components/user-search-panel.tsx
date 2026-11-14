@@ -144,7 +144,9 @@ export function UserSearchPanel({ accessToken }: UserSearchPanelProps) {
                 {user.name}
               </h3>
               <p className="truncate text-xs text-slate-500">
-                {user.username ? `@${user.username}` : user.profile?.headline ?? "User"}
+                {user.username
+                  ? `@${user.username}`
+                  : (user.profile?.headline ?? "User")}
               </p>
             </div>
           </article>

@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  CheckCheck,
-  Loader2,
-  Search,
-  Send,
-  UserPlus,
-  X,
-} from "lucide-react";
+import { CheckCheck, Loader2, Search, Send, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/features/users/components/user-avatar";
 import { searchUsers } from "@/features/users/api/users.api";
@@ -38,7 +31,9 @@ export function ChatRequestPanel({
   onChatCreated,
 }: ChatRequestPanelProps) {
   const [sentRequests, setSentRequests] = useState<ChatRequestData[]>([]);
-  const [receivedRequests, setReceivedRequests] = useState<ChatRequestData[]>([]);
+  const [receivedRequests, setReceivedRequests] = useState<ChatRequestData[]>(
+    [],
+  );
   const [isLoadingSent, setIsLoadingSent] = useState(true);
   const [isLoadingReceived, setIsLoadingReceived] = useState(true);
 
@@ -191,7 +186,9 @@ export function ChatRequestPanel({
 
     try {
       await rejectChatRequest(accessToken, requestId);
-      setReceivedRequests((current) => current.filter((r) => r.id !== requestId));
+      setReceivedRequests((current) =>
+        current.filter((r) => r.id !== requestId),
+      );
     } catch (error) {
       onError(getErrorMessage(error));
     } finally {
@@ -215,13 +212,17 @@ export function ChatRequestPanel({
     }
   }
 
-  const pendingReceived = receivedRequests.filter((r) => r.status === "PENDING");
+  const pendingReceived = receivedRequests.filter(
+    (r) => r.status === "PENDING",
+  );
   const pendingSent = sentRequests.filter((r) => r.status === "PENDING");
 
   return (
     <section className="min-w-0 rounded-lg border border-slate-200 p-3 sm:p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-slate-950">Chat Requests</h3>
+        <h3 className="text-base font-semibold text-slate-950">
+          Chat Requests
+        </h3>
         <Send className="size-5 text-slate-400" />
       </div>
 
@@ -260,11 +261,19 @@ export function ChatRequestPanel({
               onClick={() => setSelectedUser(user)}
               type="button"
             >
-              <UserAvatar avatarUrl={user.avatarUrl} name={user.name} size="sm" />
+              <UserAvatar
+                avatarUrl={user.avatarUrl}
+                name={user.name}
+                size="sm"
+              />
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">{user.name}</p>
+                <p className="truncate text-sm font-semibold text-slate-900">
+                  {user.name}
+                </p>
                 {user.username ? (
-                  <p className="truncate text-xs text-slate-500">@{user.username}</p>
+                  <p className="truncate text-xs text-slate-500">
+                    @{user.username}
+                  </p>
                 ) : null}
               </div>
             </button>
@@ -325,7 +334,9 @@ export function ChatRequestPanel({
                       {req.requester.name}
                     </p>
                     {req.message ? (
-                      <p className="truncate text-[10px] text-slate-500">{req.message}</p>
+                      <p className="truncate text-[10px] text-slate-500">
+                        {req.message}
+                      </p>
                     ) : null}
                   </div>
                 </div>
@@ -388,7 +399,9 @@ export function ChatRequestPanel({
                       {req.recipient.name}
                     </p>
                     {req.message ? (
-                      <p className="truncate text-[10px] text-slate-500">{req.message}</p>
+                      <p className="truncate text-[10px] text-slate-500">
+                        {req.message}
+                      </p>
                     ) : null}
                   </div>
                 </div>

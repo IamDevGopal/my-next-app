@@ -16,9 +16,7 @@ const PROTECTED_PREFIXES = ["/dashboard"];
 
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
-  const hasSession = Boolean(
-    request.cookies.get(SESSION_FLAG_COOKIE)?.value,
-  );
+  const hasSession = Boolean(request.cookies.get(SESSION_FLAG_COOKIE)?.value);
 
   const isProtected = PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),

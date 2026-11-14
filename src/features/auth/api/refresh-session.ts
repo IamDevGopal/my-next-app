@@ -42,13 +42,16 @@ async function rotateSession(
   }
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await fetch(`${env.NEXT_PUBLIC_API_BASE_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-      cache: "no-store",
-      signal,
-    });
+    const response = await fetch(
+      `${env.NEXT_PUBLIC_API_BASE_URL}/auth/refresh`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+        cache: "no-store",
+        signal,
+      },
+    );
 
     /**
      * Logout, another login, or another refresh may have completed while
@@ -71,7 +74,9 @@ async function rotateSession(
       return null;
     }
     if (!response.ok) {
-      throw new Error("Session refresh is temporarily unavailable. Please retry.");
+      throw new Error(
+        "Session refresh is temporarily unavailable. Please retry.",
+      );
     }
 
     const payload = (await response.json()) as ApiResponse<LoginData>;
@@ -82,7 +87,9 @@ async function rotateSession(
       typeof payload.data.refreshToken !== "string" ||
       !payload.data.refreshToken
     ) {
-      throw new Error("The session refresh response was invalid. Please retry.");
+      throw new Error(
+        "The session refresh response was invalid. Please retry.",
+      );
     }
 
     /**
@@ -130,10 +137,19 @@ export function refreshAccessToken(
       return navigator.locks.request(
         REFRESH_LOCK,
         { mode: "exclusive", signal: controller.signal },
-        () => rotateSession(expectedAccessToken, expectedSessionVersion, controller.signal),
+        () =>
+          rotateSession(
+            expectedAccessToken,
+            expectedSessionVersion,
+            controller.signal,
+          ),
       );
     }
-    return rotateSession(expectedAccessToken, expectedSessionVersion, controller.signal);
+    return rotateSession(
+      expectedAccessToken,
+      expectedSessionVersion,
+      controller.signal,
+    );
   };
 
   const promise = refresh().finally(() => {
